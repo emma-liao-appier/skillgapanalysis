@@ -1,9 +1,150 @@
 import { AssessmentData, Skill, SummaryData } from '../types';
 
+type AssessmentStatus = 'draft' | 'completed' | 'archived';
+
+type AssessmentUpdatePayload = Partial<AssessmentData> & {
+  additionalInputs?: any;
+  status?: AssessmentStatus;
+};
+
 const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001';
 
 class ApiService {
+  private userProfileCache: { [email: string]: any } = {};
+  private pendingRequests: Map<string, Promise<any>> = new Map();
+
+  private normalizeEmail(email: string) {
+    return email?.toLowerCase();
+  }
+
+  private cloneValue<T>(value: T): T {
+    if (Array.isArray(value)) {
+      return [...value] as T;
+    }
+    if (value && typeof value === 'object') {
+      return { ...(value as Record<string, unknown>) } as T;
+    }
+    return value;
+  }
+
+  private async getCachedUserProfile(email: string) {
+    const cacheKey = this.normalizeEmail(email);
+    if (!this.userProfileCache[cacheKey]) {
+      const profile = await this.getUserProfile(email) as any;
+      this.userProfileCache[cacheKey] = profile;
+    }
+    return this.userProfileCache[cacheKey];
+  }
+
+  private buildAssessmentUpdatePayload(userProfile: any, updates: AssessmentUpdatePayload) {
+    const payload: any = {
+      userEmail: this.normalizeEmail(userProfile.email),
+    };
+
+    const fields: (keyof AssessmentUpdatePayload)[] = [
+      'language',
+      'role',
+      'careerGoal',
+      'peerFeedback',
+      'careerIntro',
+      'businessGoal',
+      'keyResults',
+      'businessSkills',
+      'careerSkills',
+      'businessFeedbackSupport',
+      'businessFeedbackObstacles',
+      'careerFeedback',
+      'summary',
+      'nextSteps',
+      'nextStepsOther',
+      'finalThoughts',
+      'additionalInputs',
+      'status'
+    ];
+
+    fields.forEach(field => {
+      const value = updates[field];
+      if (value !== undefined) {
+        payload[field] = this.cloneValue(value);
+      }
+    });
+
+    return payload;
+  }
+
+  private buildAssessmentCreatePayload(userProfile: any, updates: AssessmentUpdatePayload) {
+    const payload: any = {
+      userId: userProfile.id,
+      userEmail: this.normalizeEmail(userProfile.email),
+      language: updates.language ?? 'English',
+      role: updates.role ?? userProfile.role ?? 'Unknown Role',
+      careerGoal: updates.careerGoal ?? 'To be defined',
+      peerFeedback: updates.peerFeedback ?? '',
+      careerIntro: updates.careerIntro ?? '',
+      businessGoal: updates.businessGoal ?? 'To be defined',
+      keyResults: updates.keyResults ?? 'To be defined',
+      businessSkills: updates.businessSkills ? this.cloneValue(updates.businessSkills) : [],
+      careerSkills: updates.careerSkills ? this.cloneValue(updates.careerSkills) : [],
+      businessFeedbackSupport: updates.businessFeedbackSupport ?? '',
+      businessFeedbackObstacles: updates.businessFeedbackObstacles ?? '',
+      careerFeedback: updates.careerFeedback ?? '',
+      nextSteps: updates.nextSteps ? this.cloneValue(updates.nextSteps) : [],
+      nextStepsOther: updates.nextStepsOther ?? '',
+      finalThoughts: updates.finalThoughts ?? '',
+      status: updates.status ?? 'draft'
+    };
+
+    if (updates.summary !== undefined) {
+      payload.summary = this.cloneValue(updates.summary);
+    }
+
+    if (updates.additionalInputs !== undefined) {
+      payload.additionalInputs = this.cloneValue(updates.additionalInputs);
+    }
+
+    return payload;
+  }
+
+  private async upsertAssessment(userProfile: any, updates: AssessmentUpdatePayload) {
+    const assessments = await this.getUserAssessments(userProfile.id) as any[];
+
+    if (assessments.length > 0) {
+      const latestAssessment = assessments.sort(
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      )[0];
+
+      const updatePayload = this.buildAssessmentUpdatePayload(userProfile, updates);
+      return this.updateAssessment(latestAssessment._id, updatePayload);
+    }
+
+    const createPayload = this.buildAssessmentCreatePayload(userProfile, updates);
+    return this.createAssessment(createPayload as any);
+  }
+  
   private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    // 創建請求的唯一標識符
+    const requestKey = `${options.method || 'GET'}:${endpoint}:${JSON.stringify(options.body || '')}`;
+    
+    // 如果相同的請求正在進行中，返回該請求的Promise
+    if (this.pendingRequests.has(requestKey)) {
+      return this.pendingRequests.get(requestKey);
+    }
+    
+    const requestPromise = this.executeRequest<T>(endpoint, options);
+    
+    // 將請求添加到進行中的請求Map
+    this.pendingRequests.set(requestKey, requestPromise);
+    
+    try {
+      const result = await requestPromise;
+      return result;
+    } finally {
+      // 請求完成後從Map中移除
+      this.pendingRequests.delete(requestKey);
+    }
+  }
+  
+  private async executeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
     const response = await fetch(url, {
       headers: {
@@ -119,47 +260,17 @@ class ApiService {
   }
 
   // 保存業務目標和關鍵結果
-  async saveBusinessData(email: string, businessGoal: string, keyResults: string, businessSkills?: any[], businessFeedbackSupport?: string, businessFeedbackObstacles?: string) {
-    // 首先獲取用戶 ID
-    const userProfile = await this.getUserProfile(email) as any;
-    const userId = userProfile.id;
+  async saveBusinessData(email: string, updates: AssessmentUpdatePayload) {
+    const userProfile = await this.getCachedUserProfile(email);
+    const normalizedEmail = this.normalizeEmail(email);
 
-    // 更新用戶的 q4Okr 欄位（如果 businessGoal 有變更）
-    if (businessGoal && businessGoal !== userProfile.q4Okr) {
-      await this.updateUser(userId, { q4Okr: businessGoal });
+    if (updates.businessGoal && updates.businessGoal !== userProfile.q4Okr) {
+      const updatedUser = await this.updateUser(userProfile.id, { q4Okr: updates.businessGoal });
+      userProfile.q4Okr = updatedUser.q4Okr;
+      this.userProfileCache[normalizedEmail] = userProfile;
     }
 
-    // 檢查是否已有進行中的評估
-    const assessments = await this.getUserAssessments(userId) as any[];
-    
-    if (assessments.length > 0) {
-      // 總是使用最新的評估（按 updatedAt 排序）
-      const latestAssessment = assessments.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
-      
-      // 更新現有評估
-      return this.updateAssessment(latestAssessment._id, {
-        businessGoal,
-        keyResults,
-        businessSkills: businessSkills || [],
-        businessFeedbackSupport: businessFeedbackSupport || '',
-        businessFeedbackObstacles: businessFeedbackObstacles || ''
-      });
-    } else {
-      // 只有在沒有任何評估時才創建新的
-      const newAssessment = await this.createAssessment({
-        userId,
-        language: 'English',
-        role: userProfile.role,
-        careerGoal: 'To be defined',
-        businessGoal,
-        keyResults,
-        businessSkills: businessSkills || [],
-        careerSkills: [],
-        businessFeedbackSupport: businessFeedbackSupport || '',
-        businessFeedbackObstacles: businessFeedbackObstacles || ''
-      } as any);
-      return newAssessment;
-    }
+    return this.upsertAssessment(userProfile, updates);
   }
 
   // 載入用戶的評估資料
@@ -177,47 +288,9 @@ class ApiService {
   }
 
   // 保存職業發展資料到資料庫
-  async saveCareerData(email: string, careerGoal?: string, careerSkills?: any[], careerFeedback?: string, nextSteps?: string[], nextStepsOther?: string, finalThoughts?: string) {
-    // 首先獲取用戶 ID
-    const userProfile = await this.getUserProfile(email) as any;
-    const userId = userProfile.id;
-
-    // 檢查是否已有進行中的評估
-    const assessments = await this.getUserAssessments(userId) as any[];
-    
-    if (assessments.length > 0) {
-      // 總是使用最新的評估（按 updatedAt 排序）
-      const latestAssessment = assessments.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
-      
-      // 準備更新資料
-      const updateData: any = {};
-      if (careerGoal !== undefined) updateData.careerGoal = careerGoal;
-      if (careerSkills !== undefined) updateData.careerSkills = careerSkills;
-      if (careerFeedback !== undefined) updateData.careerFeedback = careerFeedback;
-      if (nextSteps !== undefined) updateData.nextSteps = nextSteps;
-      if (nextStepsOther !== undefined) updateData.nextStepsOther = nextStepsOther;
-      if (finalThoughts !== undefined) updateData.finalThoughts = finalThoughts;
-      
-      // 更新現有評估
-      return this.updateAssessment(latestAssessment._id, updateData);
-    } else {
-      // 只有在沒有任何評估時才創建新的
-      const newAssessment = await this.createAssessment({
-        userId,
-        language: 'English',
-        role: userProfile.role,
-        careerGoal: careerGoal || 'To be defined',
-        businessGoal: 'To be defined',
-        keyResults: 'To be defined',
-        businessSkills: [],
-        careerSkills: careerSkills || [],
-        careerFeedback: careerFeedback || '',
-        nextSteps: nextSteps || [],
-        nextStepsOther: nextStepsOther || '',
-        finalThoughts: finalThoughts || ''
-      } as any);
-      return newAssessment;
-    }
+  async saveCareerData(email: string, updates: AssessmentUpdatePayload) {
+    const userProfile = await this.getCachedUserProfile(email);
+    return this.upsertAssessment(userProfile, updates);
   }
 
   // AI-powered generation

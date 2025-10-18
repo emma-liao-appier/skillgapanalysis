@@ -36,6 +36,7 @@ export interface IAdditionalInputs {
 
 export interface IAssessment extends Document {
   userId: mongoose.Types.ObjectId;
+  userEmail: string;
   language: string;
   role: string;
   careerGoal: string;
@@ -121,6 +122,12 @@ const AssessmentSchema = new Schema<IAssessment>({
     ref: 'User',
     required: true
   },
+  userEmail: {
+    type: String,
+    required: true,
+    lowercase: true,
+    trim: true
+  },
   language: {
     type: String,
     required: true,
@@ -180,6 +187,7 @@ const AssessmentSchema = new Schema<IAssessment>({
 
 // Indexes for better query performance
 AssessmentSchema.index({ userId: 1 });
+AssessmentSchema.index({ userEmail: 1 });
 AssessmentSchema.index({ status: 1 });
 AssessmentSchema.index({ createdAt: -1 });
 AssessmentSchema.index({ role: 1 });

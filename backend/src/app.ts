@@ -35,19 +35,33 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Rate limiting (disabled in development)
-if (config.nodeEnv === 'production') {
-  const limiter = rateLimit({
-    windowMs: config.rateLimitWindowMs,
-    max: config.rateLimitMaxRequests,
-    message: {
-      error: 'Too many requests from this IP, please try again later.'
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-  });
-  app.use(limiter);
-}
+// Rate limiting (skip high-frequency safe routes)
+const limiter = rateLimit({
+  windowMs: config.rateLimitWindowMs,
+  max: config.nodeEnv === 'development' ? 10000 : config.rateLimitMaxRequests,
+  message: {
+    error: 'Too many requests from this IP, please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const rateLimitBypassPaths = [
+  '/api/users/profile',
+  '/api/assessments'
+];
+
+app.use((req, res, next) => {
+  if (config.nodeEnv === 'development') {
+    return next();
+  }
+
+  if (rateLimitBypassPaths.some(path => req.path.startsWith(path))) {
+    return next();
+  }
+
+  return limiter(req, res, next);
+});
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));

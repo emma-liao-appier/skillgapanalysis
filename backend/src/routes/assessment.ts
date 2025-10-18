@@ -7,6 +7,9 @@ const assessmentController = new AssessmentController();
 // Create a new assessment
 router.post('/', assessmentController.createAssessment);
 
+// Get all assessments for a user
+router.get('/user/:userId', assessmentController.getUserAssessments);
+
 // Get assessment by ID
 router.get('/:id', assessmentController.getAssessment);
 
@@ -15,9 +18,6 @@ router.put('/:id', assessmentController.updateAssessment);
 
 // Delete assessment
 router.delete('/:id', assessmentController.deleteAssessment);
-
-// Get all assessments for a user
-router.get('/user/:userId', assessmentController.getUserAssessments);
 
 // AI Generation endpoints
 router.post('/generate-key-results', assessmentController.generateKeyResults);

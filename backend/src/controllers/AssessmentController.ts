@@ -62,7 +62,8 @@ export class AssessmentController {
       const assessment = new Assessment({
         userId,
         keyResults: assessmentData.keyResults || '',
-        ...assessmentData
+        ...assessmentData,
+        userEmail: user.email
       });
 
       const savedAssessment = await assessment.save();

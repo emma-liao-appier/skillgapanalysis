@@ -20,6 +20,8 @@ declare global {
     businessFeedbackObstaclesSaveTimeout?: NodeJS.Timeout;
     careerGoalSaveTimeout?: NodeJS.Timeout;
     careerFeedbackSaveTimeout?: NodeJS.Timeout;
+    roleSaveTimeout?: NodeJS.Timeout;
+    peerFeedbackSaveTimeout?: NodeJS.Timeout;
   }
 }
 
@@ -115,7 +117,10 @@ const App: React.FC = () => {
     // 立即保存到資料庫
     if (user?.email) {
       try {
-        await apiService.saveCareerData(user.email, undefined, skills);
+        await apiService.saveCareerData(user.email, {
+          careerSkills: skills,
+          language: assessmentData.language,
+        });
       } catch (error) {
         console.error('Error saving career skills:', error);
       }
@@ -124,6 +129,30 @@ const App: React.FC = () => {
   
   const updateRole = (role: string) => {
     setAssessmentData(prev => ({ ...prev, role }));
+
+    if (user?.email) {
+      if (window.roleSaveTimeout) {
+        clearTimeout(window.roleSaveTimeout);
+      }
+
+      const dataToSave = {
+        businessGoal: assessmentData.businessGoal,
+        keyResults: assessmentData.keyResults,
+        businessSkills: assessmentData.businessSkills,
+        businessFeedbackSupport: assessmentData.businessFeedbackSupport,
+        businessFeedbackObstacles: assessmentData.businessFeedbackObstacles,
+        role,
+        language: assessmentData.language,
+      };
+
+      window.roleSaveTimeout = setTimeout(async () => {
+        try {
+          await apiService.saveBusinessData(user.email, dataToSave);
+        } catch (error) {
+          console.error('Error saving role change:', error);
+        }
+      }, 1000);
+    }
   };
 
   const handleUserAuthenticated = async (authenticatedUser: User) => {
@@ -177,23 +206,54 @@ const App: React.FC = () => {
         clearTimeout(window.careerGoalSaveTimeout);
       }
       
-      // 設置新的定時器，1秒後保存
+      // 設置新的定時器，3秒後保存（增加延遲時間）
       window.careerGoalSaveTimeout = setTimeout(async () => {
         try {
-          await apiService.saveCareerData(user.email, goal);
+          await apiService.saveCareerData(user.email, {
+            careerGoal: goal,
+            language: assessmentData.language,
+          });
         } catch (error) {
           console.error('Error saving career goal:', error);
         }
-      }, 1000);
+      }, 3000);
     }
   };
 
   const updatePeerFeedback = (feedback: string) => {
     setAssessmentData(prev => ({ ...prev, peerFeedback: feedback }));
+
+    if (user?.email) {
+      if (window.peerFeedbackSaveTimeout) {
+        clearTimeout(window.peerFeedbackSaveTimeout);
+      }
+
+      const payload = {
+        peerFeedback: feedback,
+        language: assessmentData.language,
+      };
+
+      window.peerFeedbackSaveTimeout = setTimeout(async () => {
+        try {
+          await apiService.saveCareerData(user.email, payload);
+        } catch (error) {
+          console.error('Error saving peer feedback:', error);
+        }
+      }, 1000);
+    }
   };
 
   const updateCareerIntro = (intro: string) => {
     setAssessmentData(prev => ({ ...prev, careerIntro: intro }));
+
+    if (user?.email) {
+      apiService.saveCareerData(user.email, {
+        careerIntro: intro,
+        language: assessmentData.language,
+      }).catch(error => {
+        console.error('Error saving career intro:', error);
+      });
+    }
   };
 
   const updateBusinessGoal = async (goal: string) => {
@@ -206,21 +266,22 @@ const App: React.FC = () => {
         clearTimeout(window.businessGoalSaveTimeout);
       }
       
-      // 設置新的定時器，1秒後保存
+      // 設置新的定時器，3秒後保存（增加延遲時間）
       window.businessGoalSaveTimeout = setTimeout(async () => {
         try {
-          await apiService.saveBusinessData(
-            user.email,
-            goal,
-            assessmentData.keyResults,
-            assessmentData.businessSkills,
-            assessmentData.businessFeedbackSupport,
-            assessmentData.businessFeedbackObstacles
-          );
+          await apiService.saveBusinessData(user.email, {
+            businessGoal: goal,
+            keyResults: assessmentData.keyResults,
+            businessSkills: assessmentData.businessSkills,
+            businessFeedbackSupport: assessmentData.businessFeedbackSupport,
+            businessFeedbackObstacles: assessmentData.businessFeedbackObstacles,
+            role: assessmentData.role,
+            language: assessmentData.language,
+          });
         } catch (error) {
           console.error('Error saving business goal:', error);
         }
-      }, 1000);
+      }, 3000);
     }
   };
 
@@ -237,14 +298,15 @@ const App: React.FC = () => {
       // 設置新的定時器，1秒後保存
       window.keyResultsSaveTimeout = setTimeout(async () => {
         try {
-          await apiService.saveBusinessData(
-            user.email,
-            assessmentData.businessGoal,
-            results,
-            assessmentData.businessSkills,
-            assessmentData.businessFeedbackSupport,
-            assessmentData.businessFeedbackObstacles
-          );
+          await apiService.saveBusinessData(user.email, {
+            businessGoal: assessmentData.businessGoal,
+            keyResults: results,
+            businessSkills: assessmentData.businessSkills,
+            businessFeedbackSupport: assessmentData.businessFeedbackSupport,
+            businessFeedbackObstacles: assessmentData.businessFeedbackObstacles,
+            role: assessmentData.role,
+            language: assessmentData.language,
+          });
         } catch (error) {
           console.error('Error saving key results:', error);
         }
@@ -265,14 +327,15 @@ const App: React.FC = () => {
       // 設置新的定時器，1秒後保存
       window.businessFeedbackSupportSaveTimeout = setTimeout(async () => {
         try {
-          await apiService.saveBusinessData(
-            user.email,
-            assessmentData.businessGoal,
-            assessmentData.keyResults,
-            assessmentData.businessSkills,
-            feedback,
-            assessmentData.businessFeedbackObstacles
-          );
+          await apiService.saveBusinessData(user.email, {
+            businessGoal: assessmentData.businessGoal,
+            keyResults: assessmentData.keyResults,
+            businessSkills: assessmentData.businessSkills,
+            businessFeedbackSupport: feedback,
+            businessFeedbackObstacles: assessmentData.businessFeedbackObstacles,
+            role: assessmentData.role,
+            language: assessmentData.language,
+          });
         } catch (error) {
           console.error('Error saving business feedback support:', error);
         }
@@ -293,14 +356,15 @@ const App: React.FC = () => {
       // 設置新的定時器，1秒後保存
       window.businessFeedbackObstaclesSaveTimeout = setTimeout(async () => {
         try {
-          await apiService.saveBusinessData(
-            user.email,
-            assessmentData.businessGoal,
-            assessmentData.keyResults,
-            assessmentData.businessSkills,
-            assessmentData.businessFeedbackSupport,
-            feedback
-          );
+          await apiService.saveBusinessData(user.email, {
+            businessGoal: assessmentData.businessGoal,
+            keyResults: assessmentData.keyResults,
+            businessSkills: assessmentData.businessSkills,
+            businessFeedbackSupport: assessmentData.businessFeedbackSupport,
+            businessFeedbackObstacles: feedback,
+            role: assessmentData.role,
+            language: assessmentData.language,
+          });
         } catch (error) {
           console.error('Error saving business feedback obstacles:', error);
         }
@@ -321,7 +385,10 @@ const App: React.FC = () => {
       // 設置新的定時器，1秒後保存
       window.careerFeedbackSaveTimeout = setTimeout(async () => {
         try {
-          await apiService.saveCareerData(user.email, undefined, undefined, feedback);
+          await apiService.saveCareerData(user.email, {
+            careerFeedback: feedback,
+            language: assessmentData.language,
+          });
         } catch (error) {
           console.error('Error saving career feedback:', error);
         }
@@ -339,7 +406,10 @@ const App: React.FC = () => {
     // 立即保存到資料庫
     if (user?.email) {
       try {
-        await apiService.saveCareerData(user.email, undefined, undefined, undefined, steps);
+        await apiService.saveCareerData(user.email, {
+          nextSteps: steps,
+          language: assessmentData.language,
+        });
       } catch (error) {
         console.error('Error saving next steps:', error);
       }
@@ -352,7 +422,10 @@ const App: React.FC = () => {
     // 立即保存到資料庫
     if (user?.email) {
       try {
-        await apiService.saveCareerData(user.email, undefined, undefined, undefined, undefined, other);
+        await apiService.saveCareerData(user.email, {
+          nextStepsOther: other,
+          language: assessmentData.language,
+        });
       } catch (error) {
         console.error('Error saving next steps other:', error);
       }
@@ -365,7 +438,10 @@ const App: React.FC = () => {
     // 立即保存到資料庫
     if (user?.email) {
       try {
-        await apiService.saveCareerData(user.email, undefined, undefined, undefined, undefined, undefined, thoughts);
+        await apiService.saveCareerData(user.email, {
+          finalThoughts: thoughts,
+          language: assessmentData.language,
+        });
       } catch (error) {
         console.error('Error saving final thoughts:', error);
       }
@@ -377,6 +453,14 @@ const App: React.FC = () => {
     setLanguage(code);
     const langName = languages.find(l => l.code === code)?.name || 'English';
     setAssessmentData(prev => ({ ...prev, language: langName }));
+
+    if (user?.email) {
+      apiService.saveCareerData(user.email, {
+        language: langName,
+      }).catch(error => {
+        console.error('Error saving language preference:', error);
+      });
+    }
   };
 
   const renderStep = () => {

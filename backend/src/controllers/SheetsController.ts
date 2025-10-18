@@ -247,6 +247,7 @@ export class SheetsController {
   private async createAssessment(userId: string, userData: any) {
     const assessment = new Assessment({
       userId,
+      userEmail: userData.email?.toLowerCase(),
       language: 'English',
       role: userData.role || 'Unknown Role',
       careerGoal: userData.careerGoal || 'Professional development and growth',

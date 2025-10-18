@@ -35,7 +35,7 @@ export const config = {
   
   // Rate limiting
   rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
-  rateLimitMaxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '1000'), // Increased for development
+  rateLimitMaxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '5000'), // 大幅增加開發環境限制
   
   // Security
   helmetEnabled: process.env.HELMET_ENABLED !== 'false',

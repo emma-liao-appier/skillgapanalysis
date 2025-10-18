@@ -379,11 +379,15 @@ const StepBusiness: React.FC<StepBusinessProps> = ({
     try {
       await apiService.saveBusinessData(
         user?.email || 'emma.liao@appier.com', // 使用實際的用戶 email
-        assessmentData.businessGoal,
-        assessmentData.keyResults,
-        assessmentData.businessSkills,
-        assessmentData.businessFeedbackSupport,
-        assessmentData.businessFeedbackObstacles
+        {
+          businessGoal: assessmentData.businessGoal,
+          keyResults: assessmentData.keyResults,
+          businessSkills: assessmentData.businessSkills,
+          businessFeedbackSupport: assessmentData.businessFeedbackSupport,
+          businessFeedbackObstacles: assessmentData.businessFeedbackObstacles,
+          role: assessmentData.role,
+          language: assessmentData.language,
+        }
       );
     } catch (error) {
       console.error('Error saving business data:', error);
