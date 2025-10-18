@@ -1,0 +1,483 @@
+import { GoogleGenAI, Type } from '@google/genai';
+import { ISkill, ISummaryData, SkillCategory } from '../models/Assessment';
+
+export class GeminiService {
+  private client: GoogleGenAI;
+  private predefinedSkills: any[];
+  private existingFunctionalSkills: any[] = []; // 現有的 Functional Skills
+
+  constructor(apiKey: string, predefinedSkills: any[]) {
+    this.client = new GoogleGenAI({ apiKey });
+    this.predefinedSkills = predefinedSkills;
+  }
+
+  /**
+   * 設置現有的 Functional Skills 用於去重檢測
+   */
+  setExistingFunctionalSkills(skills: any[]) {
+    this.existingFunctionalSkills = skills;
+  }
+
+  /**
+   * 檢測技能相似度並決定是否生成新技能
+   */
+  private async checkSkillSimilarity(newSkillName: string, newSkillDescription: string): Promise<{ isDuplicate: boolean, similarSkill?: any }> {
+    if (this.existingFunctionalSkills.length === 0) {
+      return { isDuplicate: false };
+    }
+
+    const existingSkillsString = this.existingFunctionalSkills.map(skill => 
+      `Name: ${skill.name}\nDescription: ${skill.description}`
+    ).join('\n\n');
+
+    const prompt = `
+      You are a skill similarity analyzer. Compare the new skill with existing functional skills and determine if they are too similar.
+      
+      New Skill:
+      Name: "${newSkillName}"
+      Description: "${newSkillDescription}"
+      
+      Existing Functional Skills:
+      ${existingSkillsString}
+      
+      Analyze if the new skill is too similar to any existing skill. Consider:
+      1. Core competencies overlap
+      2. Skill scope similarity
+      3. Domain specificity
+      
+      Return JSON with:
+      - "isDuplicate": boolean (true if similarity > 80%)
+      - "similarSkill": object with name and description if duplicate found, null otherwise
+      - "similarityScore": number (0-100)
+    `;
+
+    try {
+      const response = await this.client.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              isDuplicate: { type: Type.BOOLEAN },
+              similarSkill: { 
+                type: Type.OBJECT,
+                properties: {
+                  name: { type: Type.STRING },
+                  description: { type: Type.STRING }
+                },
+                nullable: true
+              },
+              similarityScore: { type: Type.NUMBER }
+            },
+            required: ['isDuplicate', 'similarSkill', 'similarityScore']
+          }
+        }
+      });
+
+      const result = JSON.parse(response.text?.trim() || '{}');
+      return {
+        isDuplicate: result.isDuplicate || false,
+        similarSkill: result.similarSkill
+      };
+    } catch (error) {
+      console.error("Error checking skill similarity:", error);
+      return { isDuplicate: false };
+    }
+  }
+
+  async generateKeyResults(role: string, businessGoal: string): Promise<string> {
+    const prompt = `
+        Suggest 3 specific and measurable Key Results (KRs) for the following objective.
+        The person responsible for this objective is a "${role}".
+        The objective is: "${businessGoal}".
+
+        Return ONLY the Key Results as a bulleted list, with each KR on a new line starting with a dash. Do not include any introductory text or explanations. For example:
+        - Increase user engagement by 15%
+        - Launch the new feature by the end of Q3
+        - Reduce customer churn by 5%
+    `;
+
+    try {
+      const response = await this.client.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+      });
+      
+      return response.text?.trim() || "";
+    } catch (error) {
+      console.error("Error generating key results:", error);
+      return "Could not generate suggestions due to an error.";
+    }
+  }
+
+  async generateBusinessSkills(role: string, businessGoal: string, keyResults?: string): Promise<ISkill[]> {
+    const predefinedSkillsString = this.predefinedSkills.map((cat: any) => 
+      `Category: ${cat.category}\nSkills:\n${cat.skills.map((s: any) => `- ${s.name}: ${s.description}`).join('\n')}`
+    ).join('\n\n');
+
+    let prompt = `
+        You are a skills analyst. Your task is to recommend 5 skills for a person with the role '${role}' working towards this business goal: "${businessGoal}".
+    `;
+
+    if (keyResults) {
+      prompt += ` Consider these specific key results as well: "${keyResults}".`;
+    }
+
+    prompt += `
+        Perform the following two tasks:
+        1.  Select exactly 3 skills from the following list of General skills that are most relevant. Only return the names of the skills you select.
+        2.  Generate exactly 2 new 'Functional' skills. These should be specific, technical, or domain-specific skills directly related to the user's role and goal. For each functional skill, provide a name and a description.
+
+        General Skills List:
+        ${predefinedSkillsString}
+    `;
+
+    try {
+      const response = await this.client.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              generalSkillNames: {
+                type: Type.ARRAY,
+                description: 'An array of exactly 3 skill names selected from the provided General Skills List.',
+                items: { type: Type.STRING }
+              },
+              functionalSkills: {
+                type: Type.ARRAY,
+                description: 'An array of exactly 2 newly generated Functional skills, each with a name and description.',
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    name: { type: Type.STRING },
+                    description: { type: Type.STRING }
+                  },
+                  required: ['name', 'description']
+                }
+              }
+            },
+            required: ['generalSkillNames', 'functionalSkills']
+          },
+        },
+      });
+
+      const jsonString = response.text?.trim() || "";
+      if (!jsonString) {
+        throw new Error('Empty response from Gemini API');
+      }
+      const parsedResponse = JSON.parse(jsonString);
+
+      const allPredefinedSkills = this.predefinedSkills.flatMap((cat: any) =>
+        cat.skills.map((s: any) => ({ ...s, category: cat.category as SkillCategory }))
+      );
+
+      const generalSkills: ISkill[] = parsedResponse.generalSkillNames.map((name: string) => {
+        const foundSkill = allPredefinedSkills.find((s: any) => s.name === name);
+        return {
+          id: `skill-${Date.now()}-${Math.random()}`,
+          name: name,
+          description: foundSkill ? foundSkill.description : 'A key general skill for professional development.',
+          category: foundSkill ? foundSkill.category : SkillCategory.ProblemSolving,
+          rating: 0,
+        };
+      }).slice(0, 3);
+
+      // 處理 Functional Skills 並檢查重複
+      const functionalSkills: ISkill[] = [];
+      for (const skill of parsedResponse.functionalSkills.slice(0, 2)) {
+        const similarityCheck = await this.checkSkillSimilarity(skill.name, skill.description);
+        
+        if (similarityCheck.isDuplicate && similarityCheck.similarSkill) {
+          // 如果發現重複，使用現有技能
+          const existingSkill = this.existingFunctionalSkills.find(s => 
+            s.name === similarityCheck.similarSkill.name
+          );
+          if (existingSkill) {
+            functionalSkills.push({
+              id: existingSkill.skillId || `skill-${Date.now()}-${Math.random()}`,
+              name: existingSkill.name,
+              description: existingSkill.description,
+              category: SkillCategory.Functional,
+              rating: 0,
+            });
+          }
+        } else {
+          // 沒有重複，生成新技能
+          functionalSkills.push({
+            id: `skill-${Date.now()}-${Math.random()}`,
+            name: skill.name,
+            description: skill.description,
+            category: SkillCategory.Functional,
+            rating: 0,
+          });
+        }
+      }
+
+      return [...generalSkills, ...functionalSkills];
+    } catch (error) {
+      console.error("Error generating business skills:", error);
+      return [];
+    }
+  }
+
+  async optimizeText(textToOptimize: string): Promise<string> {
+    const prompt = `You are a career coach. A user has provided the following text about their personal development goal. Rewrite it to be more constructive, specific, and actionable. Keep it concise (1-2 sentences) and encouraging.
+    Original text: "${textToOptimize}"
+    
+    Return only the rewritten text, without any preamble.`;
+
+    try {
+      const response = await this.client.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+      });
+      return response.text?.trim() || "";
+    } catch (error) {
+      console.error("Error optimizing text:", error);
+      return textToOptimize;
+    }
+  }
+
+  async optimizeBusinessGoal(role: string, businessGoal: string): Promise<string> {
+    const prompt = `You are a business strategy consultant and career coach. A user with the role "${role}" has provided their business goal. Help them make it more comprehensive, specific, and actionable.
+
+    Current Role: "${role}"
+    Original Business Goal: "${businessGoal}"
+
+    Please rewrite the business goal to be:
+    1. More specific and measurable
+    2. More comprehensive (considering broader business context)
+    3. More actionable with clear outcomes
+    4. Aligned with their role responsibilities
+    5. Professional and well-structured
+
+    Return only the optimized business goal, without any preamble or explanation.`;
+
+    try {
+      const response = await this.client.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+      });
+      return response.text?.trim() || businessGoal;
+    } catch (error) {
+      console.error("Error optimizing business goal:", error);
+      return businessGoal; // Return original text on error
+    }
+  }
+
+  async generateCareerIntroAndSkills(currentRole: string, careerGoal: string, peerFeedback: string): Promise<{ intro: string, skills: ISkill[], alignment: any, skillThemes: string[] }> {
+    const predefinedSkillsString = this.predefinedSkills.map((cat: any) => 
+      `Category: ${cat.category}\nSkills:\n${cat.skills.map((s: any) => `- ${s.name}: ${s.description}`).join('\n')}`
+    ).join('\n\n');
+
+    const prompt = `
+        You are AItlas, an AI talent development coach. Analyze the following career development scenario and provide comprehensive insights:
+
+        User's Current Role: "${currentRole}"
+        User's Personal Growth Goal for the Year: "${careerGoal}"
+        Recent Feedback Received by User: "${peerFeedback || 'No feedback provided.'}"
+
+        Based on this information, perform the following tasks:
+
+        1. **Goal Alignment Analysis:** Assess how well their career goal aligns with their current role and provide:
+           - Alignment level: "Strong alignment", "Partial alignment", or "Low alignment"
+           - Explanation with specific examples (keep it concise - 1-2 sentences for summary, then bullet points for details)
+
+        2. **Suggested Skill Themes:** Identify 4-5 skill themes that would be most impactful for their development based on their role and career goal.
+
+        3. **Select General Skills:** Select exactly 3 skills from the following list that are most relevant for their growth goal.
+
+        4. **Generate Functional Skills:** Generate exactly 2 new 'Functional' skills that directly relate to achieving their stated goal.
+
+        General Skills List:
+        ${predefinedSkillsString}
+    `;
+    
+    try {
+      const response = await this.client.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              alignment: {
+                type: Type.OBJECT,
+                properties: {
+                  level: { 
+                    type: Type.STRING,
+                    description: 'Alignment level: "Strong alignment", "Partial alignment", or "Low alignment"'
+                  },
+                  explanation: { 
+                    type: Type.STRING,
+                    description: 'Concise explanation with summary sentence followed by bullet points for details'
+                  }
+                },
+                required: ['level', 'explanation']
+              },
+              skillThemes: {
+                type: Type.ARRAY,
+                description: 'An array of 4-5 skill themes that would be most impactful for their development.',
+                items: { type: Type.STRING }
+              },
+              generalSkillNames: {
+                type: Type.ARRAY,
+                description: 'An array of exactly 3 skill names selected from the provided General Skills List.',
+                items: { type: Type.STRING }
+              },
+              functionalSkills: {
+                type: Type.ARRAY,
+                description: 'An array of exactly 2 newly generated Functional skills, each with a name and description.',
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    name: { type: Type.STRING },
+                    description: { type: Type.STRING }
+                  },
+                  required: ['name', 'description']
+                }
+              }
+            },
+            required: ['alignment', 'skillThemes', 'generalSkillNames', 'functionalSkills']
+          },
+        },
+      });
+
+      const jsonString = response.text?.trim() || "";
+      if (!jsonString) {
+        throw new Error('Empty response from Gemini API');
+      }
+      const parsedResponse = JSON.parse(jsonString);
+
+      const allPredefinedSkills = this.predefinedSkills.flatMap((cat: any) =>
+        cat.skills.map((s: any) => ({ ...s, category: cat.category as SkillCategory }))
+      );
+
+      const generalSkills: ISkill[] = parsedResponse.generalSkillNames.map((name: string) => {
+        const foundSkill = allPredefinedSkills.find((s: any) => s.name === name);
+        return {
+          id: `skill-${Date.now()}-${Math.random()}`,
+          name: name,
+          description: foundSkill ? foundSkill.description : 'A key general skill for professional development.',
+          category: foundSkill ? foundSkill.category : SkillCategory.ProblemSolving,
+          rating: 0,
+          type: 'general',
+        };
+      }).slice(0, 3);
+
+      // 處理 Functional Skills 並檢查重複
+      const functionalSkills: ISkill[] = [];
+      for (const skill of parsedResponse.functionalSkills.slice(0, 2)) {
+        const similarityCheck = await this.checkSkillSimilarity(skill.name, skill.description);
+        
+        if (similarityCheck.isDuplicate && similarityCheck.similarSkill) {
+          // 如果發現重複，使用現有技能
+          const existingSkill = this.existingFunctionalSkills.find(s => 
+            s.name === similarityCheck.similarSkill.name
+          );
+          if (existingSkill) {
+            functionalSkills.push({
+              id: existingSkill.skillId || `skill-${Date.now()}-${Math.random()}`,
+              name: existingSkill.name,
+              description: existingSkill.description,
+              category: SkillCategory.Functional,
+              type: 'functional',
+              rating: 0,
+            });
+          }
+        } else {
+          // 沒有重複，生成新技能
+          functionalSkills.push({
+            id: `skill-${Date.now()}-${Math.random()}`,
+            name: skill.name,
+            description: skill.description,
+            type: 'functional',
+            category: SkillCategory.Functional,
+            rating: 0,
+          });
+        }
+      }
+
+      return {
+        intro: "Analysis completed successfully.",
+        skills: [...generalSkills, ...functionalSkills],
+        alignment: parsedResponse.alignment || { level: 'Partial alignment', explanation: 'Analysis completed' },
+        skillThemes: parsedResponse.skillThemes || []
+      };
+    } catch (error) {
+      console.error("Error generating career content:", error);
+      return {
+        intro: "AItlas encountered an issue. Let's focus on the skills for now!",
+        skills: [],
+        alignment: { level: 'Partial alignment', explanation: 'Analysis completed' },
+        skillThemes: []
+      };
+    }
+  }
+
+  async generateSummary(assessmentData: any): Promise<ISummaryData> {
+    const prompt = `
+        Based on the following skill self-assessment, generate a summary.
+        Current Role: ${assessmentData.role}
+        User's Career Goal: ${assessmentData.careerGoal}
+
+        Business Skills Ratings (1=Needs Development, 5=Expert):
+        ${assessmentData.businessSkills.map((s: any) => `- ${s.name} (${s.category}): ${s.rating}/5`).join('\n')}
+
+        Career Growth Skills Ratings (1=Needs Development, 5=Expert):
+        ${assessmentData.careerSkills.map((s: any) => `- ${s.name} (${s.category}): ${s.rating}/5`).join('\n')}
+        
+        User-provided context on what would help them: ${assessmentData.businessFeedbackSupport || 'N/A'}, ${assessmentData.careerFeedback || 'N/A'}
+
+        Provide the following in your response:
+        1. "businessReadiness": A percentage (0-100) indicating readiness for the current business role based on the ratings.
+        2. "careerReadiness": A percentage (0-100) indicating readiness for the next career role based on the ratings.
+        3. "recommendations": A short, encouraging paragraph (2-3 sentences) with high-level strategic advice for career development based on the assessment. This should be written in a friendly, coaching tone.
+        4. "suggestedNextSteps": An array of exactly 3 concise, actionable next steps the user can take to improve their lowest-rated skills. Each step should be a clear action, like "Lead a small project..." or "Mentor a junior engineer...".
+    `;
+
+    try {
+      const response = await this.client.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              businessReadiness: { type: Type.NUMBER },
+              careerReadiness: { type: Type.NUMBER },
+              recommendations: { type: Type.STRING },
+              suggestedNextSteps: { 
+                type: Type.ARRAY, 
+                description: "An array of exactly 3 actionable next steps.",
+                items: { type: Type.STRING } 
+              },
+            },
+            required: ['businessReadiness', 'careerReadiness', 'recommendations', 'suggestedNextSteps'],
+          },
+        },
+      });
+
+      const jsonString = response.text?.trim() || "";
+      if (!jsonString) {
+        throw new Error('Empty response from Gemini API');
+      }
+      return JSON.parse(jsonString) as ISummaryData;
+    } catch (error) {
+      console.error("Error generating summary:", error);
+      return {
+        businessReadiness: 0,
+        careerReadiness: 0,
+        recommendations: "Could not generate recommendations due to an error.",
+        suggestedNextSteps: ["Error generating suggestions. Please try again."],
+      };
+    }
+  }
+}

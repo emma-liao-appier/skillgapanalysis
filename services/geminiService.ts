@@ -137,22 +137,57 @@ export const optimizeText = async (textToOptimize: string): Promise<string> => {
     }
 };
 
+export const optimizeBusinessGoal = async (role: string, businessGoal: string): Promise<string> => {
+    const prompt = `You are a business strategy consultant and career coach. A user with the role "${role}" has provided their business goal. Help them make it more comprehensive, specific, and actionable.
 
-export const generateCareerIntroAndSkills = async (currentRole: string, careerGoal: string, peerFeedback: string): Promise<{ intro: string, skills: Skill[] }> => {
+    Current Role: "${role}"
+    Original Business Goal: "${businessGoal}"
+
+    Please rewrite the business goal to be:
+    1. More specific and measurable
+    2. More comprehensive (considering broader business context)
+    3. More actionable with clear outcomes
+    4. Aligned with their role responsibilities
+    5. Professional and well-structured
+
+    Return only the optimized business goal, without any preamble or explanation.`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+        });
+        return response.text.trim();
+    } catch (error) {
+        console.error("Error optimizing business goal:", error);
+        return businessGoal; // Return original text on error
+    }
+};
+
+
+export const generateCareerIntroAndSkills = async (currentRole: string, careerGoal: string, peerFeedback: string): Promise<{ intro: string, skills: Skill[], alignment: any, skillThemes: string[] }> => {
     const predefinedSkillsString = PREDEFINED_SKILLS.map(cat => 
         `Category: ${cat.category}\nSkills:\n${cat.skills.map(s => `- ${s.name}: ${s.description}`).join('\n')}`
     ).join('\n\n');
 
     const prompt = `
-        You are a skills analyst and career coach. Your task is to provide personalized career development recommendations for a user.
+        You are AItlas, an AI talent development coach. Analyze the following career development scenario and provide comprehensive insights:
+
         User's Current Role: "${currentRole}"
         User's Personal Growth Goal for the Year: "${careerGoal}"
         Recent Feedback Received by User: "${peerFeedback || 'No feedback provided.'}"
 
-        Based on this information, perform the following three tasks:
-        1.  **Generate an Introductory Paragraph:** Write a short, encouraging paragraph (2-3 sentences) that acknowledges the user's input and sets a positive tone for the skill recommendations. This should act as a bridge between their goals and the skills needed to achieve them.
-        2.  **Select General Skills:** Select exactly 3 skills from the following list of General skills that are most relevant for their growth goal. Only return the names of the skills you select.
-        3.  **Generate Functional Skills:** Generate exactly 2 new 'Functional' skills. These should be specific, technical, or domain-specific skills that directly relate to achieving their stated goal. For each functional skill, provide a name and a description.
+        Based on this information, perform the following tasks:
+
+        1. **Goal Alignment Analysis:** Assess how well their career goal aligns with their current role and provide:
+           - Alignment level: "Strong alignment", "Partial alignment", or "Low alignment"
+           - Explanation with specific examples (keep it concise - 1-2 sentences for summary, then bullet points for details)
+
+        2. **Suggested Skill Themes:** Identify 4-5 skill themes that would be most impactful for their development based on their role and career goal.
+
+        3. **Select General Skills:** Select exactly 3 skills from the following list that are most relevant for their growth goal.
+
+        4. **Generate Functional Skills:** Generate exactly 2 new 'Functional' skills that directly relate to achieving their stated goal.
 
         General Skills List:
         ${predefinedSkillsString}
@@ -167,9 +202,24 @@ export const generateCareerIntroAndSkills = async (currentRole: string, careerGo
                 responseSchema: {
                     type: Type.OBJECT,
                     properties: {
-                        intro: { 
-                            type: Type.STRING,
-                            description: 'A short, encouraging introductory paragraph (2-3 sentences).'
+                        alignment: {
+                            type: Type.OBJECT,
+                            properties: {
+                                level: { 
+                                    type: Type.STRING,
+                                    description: 'Alignment level: "Strong alignment", "Partial alignment", or "Low alignment"'
+                                },
+                                explanation: { 
+                                    type: Type.STRING,
+                                    description: 'Concise explanation with summary sentence followed by bullet points for details'
+                                }
+                            },
+                            required: ['level', 'explanation']
+                        },
+                        skillThemes: {
+                            type: Type.ARRAY,
+                            description: 'An array of 4-5 skill themes that would be most impactful for their development.',
+                            items: { type: Type.STRING }
                         },
                         generalSkillNames: {
                             type: Type.ARRAY,
@@ -189,7 +239,7 @@ export const generateCareerIntroAndSkills = async (currentRole: string, careerGo
                             }
                         }
                     },
-                    required: ['intro', 'generalSkillNames', 'functionalSkills']
+                    required: ['alignment', 'skillThemes', 'generalSkillNames', 'functionalSkills']
                 },
             },
         });
@@ -221,15 +271,19 @@ export const generateCareerIntroAndSkills = async (currentRole: string, careerGo
         })).slice(0, 2);
 
         return {
-            intro: parsedResponse.intro,
-            skills: [...generalSkills, ...functionalSkills]
+            intro: "Analysis completed successfully.",
+            skills: [...generalSkills, ...functionalSkills],
+            alignment: parsedResponse.alignment || { level: 'Partial alignment', explanation: 'Analysis completed' },
+            skillThemes: parsedResponse.skillThemes || []
         };
         
     } catch (error) {
         console.error("Error generating career content:", error);
         return {
-            intro: "AItlas encountered an issue generating your personalized introduction. Let's focus on the skills for now!",
-            skills: []
+            intro: "AItlas encountered an issue. Let's focus on the skills for now!",
+            skills: [],
+            alignment: { level: 'Partial alignment', explanation: 'Analysis completed' },
+            skillThemes: []
         };
     }
 };

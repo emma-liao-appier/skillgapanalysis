@@ -1,26 +1,76 @@
 import React from 'react';
 import { useLanguage } from '../context/LanguageContext';
 
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  department: string;
+  division: string;
+  location: string;
+  jobLevel: string;
+  careerLadder: string;
+  lineManager: string;
+  functionalLead: string;
+}
+
 interface StepIntroProps {
+  user: User;
   onNext: () => void;
 }
 
-const StepIntro: React.FC<StepIntroProps> = ({ onNext }) => {
+const StepIntro: React.FC<StepIntroProps> = ({ user, onNext }) => {
   const { t } = useLanguage();
+  
   return (
     <div className="flex flex-col justify-center items-center h-full text-center">
-      <h2 className="text-3xl font-bold text-slate-100">{t('intro_title')}</h2>
-      <p className="mt-4 max-w-2xl text-slate-400">
-        {t('intro_subtitle1')}
-      </p>
-      <p className="mt-2 max-w-2xl text-slate-400">
-        {t('intro_subtitle2')}
-      </p>
+      <div className="mb-6">
+        <h1 className="text-4xl font-bold text-white mb-2">
+          Hi, {user.name.split(' ')[0]}! 👋
+        </h1>
+        <h2 className="text-2xl font-semibold text-blue-200">
+          Welcome to Your Skill Assessment
+        </h2>
+      </div>
+      
+      <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 mb-8 max-w-2xl">
+        <div className="text-left space-y-3">
+          <div className="flex justify-between">
+            <span className="text-blue-200 font-medium">Role:</span>
+            <span className="text-white">{user.role}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-blue-200 font-medium">Department:</span>
+            <span className="text-white">{user.department}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-blue-200 font-medium">Location:</span>
+            <span className="text-white">{user.location}</span>
+          </div>
+          {user.lineManager && (
+            <div className="flex justify-between">
+              <span className="text-blue-200 font-medium">Line Manager:</span>
+              <span className="text-white">{user.lineManager}</span>
+            </div>
+          )}
+        </div>
+      </div>
+      
+      <div className="max-w-2xl mb-8">
+        <p className="text-slate-300 text-lg mb-4">
+          This conversational tool will help you reflect on your current skills and identify key areas for growth.
+        </p>
+        <p className="text-slate-400">
+          The process should take about 5-10 minutes. Your honest self-assessment will help generate a personalized development summary.
+        </p>
+      </div>
+      
       <button
         onClick={onNext}
-        className="mt-8 px-8 py-3 bg-cyan-500 text-white font-semibold rounded-full hover:bg-cyan-600 transition-colors shadow-lg shadow-cyan-500/20"
+        className="px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold rounded-full hover:from-blue-600 hover:to-blue-700 transition-all duration-200 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transform hover:scale-105"
       >
-        {t('intro_start_button')}
+        Start Assessment
       </button>
     </div>
   );

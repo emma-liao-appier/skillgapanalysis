@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AssessmentData, SummaryData, SummaryStage, SkillCategory, Skill } from '../types';
 import ThinkingRobot from './ThinkingRobot';
-import { generateSummary } from '../services/geminiService';
+import { apiService } from '../services/apiService';
 import { useLanguage } from '../context/LanguageContext';
 
 interface StepSummaryProps {
@@ -150,12 +150,39 @@ const StepSummary: React.FC<StepSummaryProps> = ({ assessmentData, updateSummary
   const [stage, setStage] = useState<SummaryStage>('report');
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [selectedVennArea, setSelectedVennArea] = useState<'business' | 'career' | 'alignment' | null>(null);
   const { t } = useLanguage();
+  
+  type AlignmentLevel = 'High' | 'Partial' | 'Low';
+  type ReadinessLevel = 'High' | 'Medium' | 'Low';
+  type TalentType =
+    | 'Strategic Contributor'
+    | 'Emerging Talent'
+    | 'Foundational Builder'
+    | 'Functional Expert'
+    | 'Evolving Generalist'
+    | 'Exploring Talent'
+    | 'Re-direction Needed'
+    | 'Potential Shifter'
+    | 'Career Explorer';
+  
+  interface TalentNavigation {
+    alignmentScore: number; // 0-100
+    readinessScore: number; // 0-100
+    alignmentLevel: AlignmentLevel;
+    readinessLevel: ReadinessLevel;
+    talentType: TalentType;
+    focusAreas: string[];
+    recommendations: string[];
+  }
   
   const fetchSummary = useCallback(async () => {
     if (assessmentData.summary) return; // Don't re-fetch if summary already exists
     setIsLoading(true);
-    const summaryData = await generateSummary(assessmentData);
+    // For now, we'll create a temporary assessment to generate summary
+    const tempAssessmentId = 'temp-' + Date.now();
+    const response = await apiService.generateSummary(tempAssessmentId);
+    const summaryData = response.summary;
     updateSummary(summaryData);
     setIsLoading(false);
   }, [assessmentData, updateSummary]);
@@ -211,8 +238,205 @@ const StepSummary: React.FC<StepSummaryProps> = ({ assessmentData, updateSummary
         
     const rankedSkills = combinedSkills.sort((a, b) => a.skill.rating - b.skill.rating);
 
-    return { skillStatsByCategory, focusAreas, rankedSkills };
+    return { skillStatsByCategory, focusAreas, rankedSkills, combinedSkills };
   }, [assessmentData, t]);
+
+  // Filter skills based on selected Venn area
+  const filteredSkills = useMemo(() => {
+    if (!summaryCalculations) return [];
+    
+    if (!selectedVennArea) {
+      return summaryCalculations.rankedSkills; // Show all skills
+    }
+    
+    if (selectedVennArea === 'alignment') {
+      // Show skills that appear in both business and career
+      return summaryCalculations.combinedSkills.filter(({ relevance }) => 
+        relevance.includes('business') && relevance.includes('career')
+      );
+    }
+    
+    // Show skills for the selected area
+    return summaryCalculations.combinedSkills.filter(({ relevance }) => 
+      relevance.includes(selectedVennArea)
+    );
+  }, [summaryCalculations, selectedVennArea]);
+
+  // Filter skill gap overview based on selected Venn area
+  const filteredSkillStats = useMemo(() => {
+    if (!summaryCalculations) return [];
+    
+    if (!selectedVennArea) {
+      return summaryCalculations.skillStatsByCategory; // Show all categories
+    }
+    
+    // Filter categories that have skills in the selected area
+    return summaryCalculations.skillStatsByCategory.filter(stat => {
+      const skillsInCategory = summaryCalculations.combinedSkills.filter(({ skill }) => 
+        skill.category === stat.category
+      );
+      
+      if (selectedVennArea === 'alignment') {
+        return skillsInCategory.some(({ relevance }) => 
+          relevance.includes('business') && relevance.includes('career')
+        );
+      }
+      
+      return skillsInCategory.some(({ relevance }) => 
+        relevance.includes(selectedVennArea)
+      );
+    });
+  }, [summaryCalculations, selectedVennArea]);
+
+  // Deterministic Talent Navigation analysis (no backend dependency)
+  const talentNavigation: TalentNavigation | null = useMemo(() => {
+    if (!assessmentData.summary) return null;
+
+    // 1) Alignment score (simple heuristic): text overlap + category overlap
+    const normalize = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
+    const words = (s: string) => Array.from(new Set(normalize(s).split(/\s+/).filter(Boolean)));
+    const bizWords = new Set(words(assessmentData.businessGoal + ' ' + (assessmentData.keyResults || '')));
+    const careerWords = new Set(words(assessmentData.careerGoal));
+    const commonWordCount = Array.from(bizWords).filter(w => careerWords.has(w)).length;
+    const alignTextScore = bizWords.size > 0 ? Math.min(100, Math.round((commonWordCount / Math.max(6, bizWords.size)) * 100)) : 50;
+
+    const bizCats = new Set(assessmentData.businessSkills.map(s => s.category));
+    const careerCats = new Set(assessmentData.careerSkills.map(s => s.category));
+    const commonCats = Array.from(bizCats).filter(c => careerCats.has(c)).length;
+    const alignCatScore = (bizCats.size + careerCats.size) > 0 ? Math.round((commonCats / Math.max(1, Math.max(bizCats.size, careerCats.size))) * 100) : 50;
+
+    const alignmentScore = Math.round(0.7 * alignTextScore + 0.3 * alignCatScore);
+    let alignmentLevel: AlignmentLevel = 'Partial';
+    if (alignmentScore >= 67) alignmentLevel = 'High';
+    else if (alignmentScore < 40) alignmentLevel = 'Low';
+
+    // 2) Readiness score: average of all rated skills
+    const allSkills = [...assessmentData.businessSkills, ...assessmentData.careerSkills];
+    const rated = allSkills.filter(s => s.rating > 0);
+    const avg = rated.length ? rated.reduce((a, s) => a + s.rating, 0) / rated.length : 0;
+    const readinessScore = Math.round((avg / 5) * 100);
+    let readinessLevel: ReadinessLevel = 'Medium';
+    if (readinessScore >= 75) readinessLevel = 'High';
+    else if (readinessScore < 50) readinessLevel = 'Low';
+
+    // 3) Map to Talent Type (3x3 matrix)
+    const levelToIdx = (lvl: AlignmentLevel | ReadinessLevel) => ({ High: 2, Medium: 1, Partial: 1, Low: 0 } as any)[lvl];
+    const a = levelToIdx(alignmentLevel);
+    const r = levelToIdx(readinessLevel);
+    let talentType: TalentType = 'Evolving Generalist';
+    if (a === 2 && r === 2) talentType = 'Strategic Contributor';
+    else if (a === 2 && r === 1) talentType = 'Emerging Talent';
+    else if (a === 2 && r === 0) talentType = 'Foundational Builder';
+    else if (a === 1 && r === 2) talentType = 'Functional Expert';
+    else if (a === 1 && r === 1) talentType = 'Evolving Generalist';
+    else if (a === 1 && r === 0) talentType = 'Exploring Talent';
+    else if (a === 0 && r === 2) talentType = 'Re-direction Needed';
+    else if (a === 0 && r === 1) talentType = 'Potential Shifter';
+    else if (a === 0 && r === 0) talentType = 'Career Explorer';
+
+    // 4) Focus areas from lowest categories
+    const categories = new Map<string, { count: number; total: number }>();
+    for (const s of allSkills) {
+      const key = s.category;
+      const item = categories.get(key) || { count: 0, total: 0 };
+      item.count += 1;
+      item.total += s.rating;
+      categories.set(key, item);
+    }
+    const categoryAverages = Array.from(categories.entries()).map(([cat, { count, total }]) => ({ cat, avg: count ? total / count : 0 }));
+    const focusAreas = categoryAverages.sort((x, y) => x.avg - y.avg).slice(0, 3).map(x => t(`skill_category_${x.cat}`));
+
+    // 5) Recommendations per talent type (short, action-oriented)
+    const recMap: Record<TalentType, string[]> = {
+      'Strategic Contributor': [
+        'Mentor others to scale your impact',
+        'Lead cross-functional initiatives with clear outcomes',
+        'Shape strategy and decision-making rituals',
+      ],
+      'Emerging Talent': [
+        'Own a small cross-functional project end-to-end',
+        'Practice leadership behaviors in team rituals',
+        'Seek a sponsor for stretch opportunities',
+      ],
+      'Foundational Builder': [
+        'Focus on hands-on practice with guided tasks',
+        'Pair with a senior for weekly skill drills',
+        'Track progress on 2-3 core skills',
+      ],
+      'Functional Expert': [
+        'Broaden influence beyond function (teach, document, demo)',
+        'Enable mobility by pairing with adjacent teams',
+        'Translate expertise into reusable playbooks',
+      ],
+      'Evolving Generalist': [
+        'Rotate projects to widen exposure',
+        'Request a mentor for career clarity',
+        'Define a 90-day growth theme',
+      ],
+      'Exploring Talent': [
+        'Clarify goals with manager; pick 1-2 bets',
+        'Try short skill trials (2-4 weeks)',
+        'Reflect weekly on fit and energy',
+      ],
+      'Re-direction Needed': [
+        'Re-align goals with business needs',
+        'Negotiate role-fit or scope changes',
+        'Prioritize outcomes over activities',
+      ],
+      'Potential Shifter': [
+        'Establish career clarity and learning plan',
+        'Seek project rotation to test fit',
+        'Find a peer coach in target area',
+      ],
+      'Career Explorer': [
+        'Provide career counseling and skill trials',
+        'Shadow roles to learn expectations',
+        'Set short, low-risk experiments',
+      ],
+    };
+
+    return {
+      alignmentScore,
+      readinessScore,
+      alignmentLevel,
+      readinessLevel,
+      talentType,
+      focusAreas,
+      recommendations: recMap[talentType],
+    };
+  }, [assessmentData, t]);
+
+  const getAlignmentBadge = (lvl: AlignmentLevel) => {
+    const map: Record<AlignmentLevel, { icon: string; cls: string }> = {
+      High: { icon: '✅', cls: 'text-green-400' },
+      Partial: { icon: '⚖️', cls: 'text-yellow-400' },
+      Low: { icon: '🧭', cls: 'text-orange-400' }, // use a positive, guidance-oriented symbol
+    };
+    const { icon, cls } = map[lvl];
+    return <span className={`font-semibold ${cls}`}>{icon} {lvl}</span>;
+  };
+
+  const getReadinessBadge = (lvl: ReadinessLevel) => {
+    const map: Record<ReadinessLevel, { icon: string; cls: string }> = {
+      High: { icon: '💪', cls: 'text-green-400' },
+      Medium: { icon: '⚖️', cls: 'text-yellow-400' },
+      Low: { icon: '🌱', cls: 'text-cyan-400' },
+    };
+    const { icon, cls } = map[lvl];
+    return <span className={`font-semibold ${cls}`}>{icon} {lvl}</span>;
+  };
+
+  const talentTypeDescriptions: Record<TalentType, string> = {
+    'Strategic Contributor': 'You drive impact across teams and help shape strategy. Keep scaling your influence through coaching and system-level thinking.',
+    'Emerging Talent': 'You are growing quickly with clear potential. Lean into ownership moments and practice visible leadership behaviors.',
+    'Foundational Builder': 'You are laying strong foundations. Consistent practice and guided challenges will accelerate your momentum.',
+    'Functional Expert': 'You bring deep expertise. Share knowledge and expand your impact across functions to multiply value.',
+    'Evolving Generalist': 'You are building breadth and adaptability. Explore adjacent domains and clarify your next growth theme.',
+    'Exploring Talent': 'You are discovering your best fit. Short, low-risk trials and reflections will surface your strengths.',
+    'Re-direction Needed': 'You have strong skills—re-aim them toward the most business-aligned goals for outsized impact.',
+    'Potential Shifter': 'You are ready for a shift. Clarify direction and try a rotation to test and build confidence.',
+    'Career Explorer': 'You are at the start of a new path. Guided learning and role shadowing will help you move forward with confidence.',
+  };
 
 
   const handleSubmit = async () => {
@@ -243,28 +467,316 @@ const StepSummary: React.FC<StepSummaryProps> = ({ assessmentData, updateSummary
   
   const { skillStatsByCategory, focusAreas, rankedSkills } = summaryCalculations;
 
+  const vennDiagramMessages = {
+    business: "Your business skills show strong execution capabilities. Focus on scaling impact through systematic approaches and cross-functional collaboration.",
+    career: "Your career development path demonstrates clear growth potential. Continue building expertise while expanding leadership influence.",
+    alignment: "Your business and career goals show promising alignment. This synergy creates opportunities for accelerated growth and meaningful impact."
+  };
+
+  const VennDiagram: React.FC = () => {
+    const circleSize = 60;
+    const overlap = 20;
+    const centerX = 90; // 移到更中心位置
+    const centerY = 70; // 移到更中心位置
+
+    return (
+      <div className="flex justify-center my-6">
+        <svg width="180" height="140" className="cursor-pointer"> {/* 放大 container */}
+          {/* Business Skills Circle */}
+          <circle
+            cx={centerX - overlap/2}
+            cy={centerY}
+            r={circleSize}
+            fill={selectedVennArea === 'business' ? 'rgba(0, 191, 255, 0.3)' : 'rgba(0, 191, 255, 0.15)'}
+            stroke="rgba(0, 191, 255, 0.8)"
+            strokeWidth="2"
+            className="transition-all duration-300 hover:fill-cyan-400/30 backdrop-blur-sm"
+            onClick={() => setSelectedVennArea(selectedVennArea === 'business' ? null : 'business')}
+            style={{ 
+              filter: selectedVennArea === 'business' 
+                ? 'drop-shadow(0 0 20px rgba(0, 191, 255, 0.6))' 
+                : 'drop-shadow(0 0 10px rgba(0, 191, 255, 0.3))',
+              opacity: selectedVennArea && selectedVennArea !== 'business' && selectedVennArea !== 'alignment' ? '0.4' : '1'
+            }}
+          />
+          
+          {/* Career Skills Circle */}
+          <circle
+            cx={centerX + overlap/2}
+            cy={centerY}
+            r={circleSize}
+            fill={selectedVennArea === 'career' ? 'rgba(138, 43, 226, 0.3)' : 'rgba(138, 43, 226, 0.15)'}
+            stroke="rgba(138, 43, 226, 0.8)"
+            strokeWidth="2"
+            className="transition-all duration-300 hover:fill-purple-400/30 backdrop-blur-sm"
+            onClick={() => setSelectedVennArea(selectedVennArea === 'career' ? null : 'career')}
+            style={{ 
+              filter: selectedVennArea === 'career' 
+                ? 'drop-shadow(0 0 20px rgba(138, 43, 226, 0.6))' 
+                : 'drop-shadow(0 0 10px rgba(138, 43, 226, 0.3))',
+              opacity: selectedVennArea && selectedVennArea !== 'career' && selectedVennArea !== 'alignment' ? '0.4' : '1'
+            }}
+          />
+          
+          {/* Alignment intersection area - enhanced visibility when selected */}
+          <circle
+            cx={centerX}
+            cy={centerY}
+            r={circleSize - overlap}
+            fill={selectedVennArea === 'alignment' ? 'rgba(255, 105, 180, 0.4)' : 'transparent'}
+            stroke={selectedVennArea === 'alignment' ? 'rgba(255, 105, 180, 0.8)' : 'none'}
+            strokeWidth={selectedVennArea === 'alignment' ? '2' : '0'}
+            className="cursor-pointer transition-all duration-300"
+            onClick={() => setSelectedVennArea(selectedVennArea === 'alignment' ? null : 'alignment')}
+            style={{
+              filter: selectedVennArea === 'alignment' 
+                ? 'drop-shadow(0 0 15px rgba(255, 105, 180, 0.5))' 
+                : 'none'
+            }}
+          />
+        </svg>
+      </div>
+    );
+  };
+
+  // Calculate readiness percentage for donut chart
+  const getReadinessPercentage = () => {
+    if (!selectedVennArea) {
+      return 0;
+    }
+
+    const skills = selectedVennArea === 'business' ? assessmentData.businessSkills :
+                   selectedVennArea === 'career' ? assessmentData.careerSkills :
+                   [...assessmentData.businessSkills, ...assessmentData.careerSkills];
+
+    if (skills.length === 0) return 0;
+
+    const totalRating = skills.reduce((sum, skill) => sum + skill.rating, 0);
+    const maxPossibleRating = skills.length * 5;
+    const readinessPercentage = Math.round((totalRating / maxPossibleRating) * 100);
+    
+    return readinessPercentage;
+  };
+
+  // Get color based on selected area
+  const getDonutColor = () => {
+    if (selectedVennArea === 'business') return '#00bfff'; // Cyan
+    if (selectedVennArea === 'career') return '#8a2be2'; // Purple  
+    if (selectedVennArea === 'alignment') return '#ff69b4'; // Pink
+    return '#64748b'; // Default slate
+  };
+
+  // Donut Chart Component for Readiness Level
+  const DonutChart: React.FC = () => {
+    const size = 120;
+    const strokeWidth = 20;
+    const radius = (size - strokeWidth) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const readinessPercentage = getReadinessPercentage();
+    const donutColor = getDonutColor();
+    
+    // Progress segment (colored)
+    const progressDasharray = `${(readinessPercentage / 100) * circumference} ${circumference}`;
+    
+    // Background segment (transparent gray)
+    const backgroundDasharray = `${circumference - (readinessPercentage / 100) * circumference} ${circumference}`;
+    const backgroundDashoffset = `-${(readinessPercentage / 100) * circumference}`;
+
+    return (
+      <div className="flex flex-col items-center">
+        <div className="relative">
+          <svg width={size} height={size} className="drop-shadow-lg">
+            {/* Background circle (transparent gray) */}
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              stroke="rgba(148, 163, 184, 0.3)" // slate-400 with transparency
+              strokeWidth={strokeWidth}
+              strokeDasharray={backgroundDasharray}
+              strokeDashoffset={backgroundDashoffset}
+              strokeLinecap="round"
+              style={{
+                transform: 'rotate(-90deg)',
+                transformOrigin: 'center'
+              }}
+            />
+            
+            {/* Progress circle (semi-transparent colored) */}
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              stroke={donutColor}
+              strokeWidth={strokeWidth}
+              strokeDasharray={progressDasharray}
+              strokeDashoffset="0"
+              strokeLinecap="round"
+              className="transition-all duration-500"
+              style={{
+                transform: 'rotate(-90deg)',
+                transformOrigin: 'center',
+                opacity: 0.6 // Semi-transparent
+              }}
+            />
+          </svg>
+          
+          {/* Center percentage */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-xl font-bold text-white">{readinessPercentage}%</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderReport = () => (
     <>
-      <h3 className="text-2xl font-bold text-slate-100 text-center mb-2">🎯 {t('summary_title')}</h3>
-      <div className="flex justify-center items-center gap-8 my-4">
-        <ProgressCircle percentage={assessmentData.summary.businessReadiness} label={t('summary_business_readiness')} color="text-cyan-400" />
-        <ProgressCircle percentage={assessmentData.summary.careerReadiness} label={t('summary_career_readiness')} color="text-green-400" />
+      {/* Talent Navigation Card - moved to top */}
+      {talentNavigation && (
+        <div className="mb-8">
+          <h4 className="text-lg font-semibold text-slate-200 mb-3">🌱 Your Talent Type</h4>
+          <div className="bg-gradient-to-br from-purple-800/20 to-blue-800/20 p-5 rounded-lg border border-purple-700/30">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div className="text-xl font-bold text-white">{talentNavigation.talentType}</div>
+              <div className="text-sm text-slate-300">
+                Alignment: {getAlignmentBadge(talentNavigation.alignmentLevel)} • Skill Readiness: {getReadinessBadge(talentNavigation.readinessLevel)}
+              </div>
+            </div>
+            <p className="text-slate-300 mt-3 text-sm leading-relaxed">
+              {talentTypeDescriptions[talentNavigation.talentType]}
+            </p>
+            {talentNavigation.focusAreas.length > 0 && (
+              <p className="text-slate-300 mt-4 text-sm">
+                <span className="mr-1">💡</span>
+                Focus Areas: {talentNavigation.focusAreas.join(' · ')}
+              </p>
+            )}
+            <ul className="mt-3 space-y-1">
+              {talentNavigation.recommendations.map((rec, idx) => (
+                <li key={idx} className="text-slate-300 text-sm flex items-start">
+                  <span className="text-purple-400 mr-2 mt-0.5">→</span>
+                  <span>{rec}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {/* Interactive Venn Diagram & Donut Chart - Side by Side Layout */}
+      <div className="mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+          {/* Left: Venn Diagram */}
+          <div className="flex flex-col items-center">
+            <VennDiagram />
+          </div>
+          
+          {/* Right: Donut Chart */}
+          <div className="flex flex-col items-center">
+            <DonutChart />
+          </div>
+        </div>
+        
+        {/* Area Labels - Centered below both diagrams */}
+        <div className="flex justify-center items-center gap-6 mt-4">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-cyan-400/30 border border-cyan-400"></div>
+            <span className="text-sm text-slate-300">Business Skills</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-purple-400/30 border border-purple-400"></div>
+            <span className="text-sm text-slate-300">Career Skills</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-pink-400/30 border border-pink-400"></div>
+            <span className="text-sm text-slate-300">Alignment</span>
+          </div>
+        </div>
+        
+        {/* Interactive Message Box - Full Width Below */}
+        <div className={`backdrop-blur-md border p-6 rounded-xl shadow-2xl transition-all duration-500 mt-8 ${
+          selectedVennArea === 'business' 
+            ? 'bg-gradient-to-br from-cyan-900/40 to-cyan-800/30 border-cyan-500/50' 
+            : selectedVennArea === 'career'
+            ? 'bg-gradient-to-br from-purple-900/40 to-purple-800/30 border-purple-500/50'
+            : selectedVennArea === 'alignment'
+            ? 'bg-gradient-to-br from-pink-900/40 to-pink-800/30 border-pink-500/50'
+            : 'bg-gradient-to-br from-slate-800/30 to-slate-700/30 border-slate-600/30'
+        }`}>
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">💡</span>
+            <div className="flex-1">
+              {selectedVennArea ? (
+                <div>
+                  <h5 className="text-lg font-semibold text-slate-100 mb-3">
+                    {selectedVennArea === 'business' ? 'Business Skills' :
+                     selectedVennArea === 'career' ? 'Career Skills' :
+                     'Alignment Analysis'}
+                  </h5>
+                  <p className="text-slate-200 text-sm leading-relaxed">
+                    {vennDiagramMessages[selectedVennArea]}
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <h5 className="text-lg font-semibold text-slate-100 mb-3">Interactive Skill Explorer</h5>
+                  <p className="text-slate-400 text-sm italic">
+                    Click on different parts of the diagram to filter skills and reflect on your development journey
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
-      <p className="text-center max-w-3xl mx-auto text-slate-300 mb-8 bg-slate-800/50 p-4 rounded-lg">
-        <span className="text-xl inline-block mr-2">💡</span>{assessmentData.summary.recommendations}
-      </p>
 
       {/* Skill Gap Overview */}
       <div className="mb-8">
-        <h4 className="text-lg font-semibold text-slate-200 mb-3">📊 Skill Gap Overview</h4>
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-lg font-semibold text-slate-200">📊 Skill Gap Overview</h4>
+          {selectedVennArea && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-400">Filtered by:</span>
+              <span className={`text-sm font-semibold px-2 py-1 rounded ${
+                selectedVennArea === 'business' ? 'bg-cyan-900/30 text-cyan-300' :
+                selectedVennArea === 'career' ? 'bg-purple-900/30 text-purple-300' :
+                'bg-pink-900/30 text-pink-300'
+              }`}>
+                {selectedVennArea === 'business' ? 'Business Skills' :
+                 selectedVennArea === 'career' ? 'Career Skills' :
+                 'Alignment Skills'}
+              </span>
+              <button 
+                onClick={() => setSelectedVennArea(null)}
+                className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                Clear filter
+              </button>
+            </div>
+          )}
+        </div>
         <div className="bg-slate-800/50 p-4 rounded-lg space-y-3">
-            {skillStatsByCategory.map(stat => (
+            {filteredSkillStats.map(stat => (
                 <div key={stat.category} className="grid grid-cols-12 gap-2 items-center text-sm">
                     <div className="font-bold text-slate-300 col-span-12 md:col-span-5">{t(`skill_category_${stat.category}`)}</div>
                     <div className="text-xs text-slate-400 col-span-6 md:col-span-4">{stat.skillCount} skills | Avg {stat.averageRating.toFixed(1)}/5</div>
                     <div className="col-span-6 md:col-span-3 text-right md:text-left"><GapIndicator avgRating={stat.averageRating} /></div>
                 </div>
             ))}
+            {filteredSkillStats.length === 0 && selectedVennArea && (
+              <div className="text-center text-slate-500 py-4">
+                <p>No skill categories found for this filter.</p>
+                <button 
+                  onClick={() => setSelectedVennArea(null)}
+                  className="text-cyan-400 hover:text-cyan-300 text-sm mt-2"
+                >
+                  Show all categories
+                </button>
+              </div>
+            )}
           <p className="text-right text-sm text-slate-400 mt-3 border-t border-slate-700 pt-2">
             → Focus: {focusAreas.join(', ')}
           </p>
@@ -273,9 +785,31 @@ const StepSummary: React.FC<StepSummaryProps> = ({ assessmentData, updateSummary
 
       {/* Ranked Skill Focus */}
       <div className="mb-8">
-        <h4 className="text-lg font-semibold text-slate-200 mb-3">🏆 Your Ranked Skill Focus</h4>
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-lg font-semibold text-slate-200">🏆 Your Ranked Skill Focus</h4>
+          {selectedVennArea && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-400">Filtered by:</span>
+              <span className={`text-sm font-semibold px-2 py-1 rounded ${
+                selectedVennArea === 'business' ? 'bg-cyan-900/30 text-cyan-300' :
+                selectedVennArea === 'career' ? 'bg-purple-900/30 text-purple-300' :
+                'bg-pink-900/30 text-pink-300'
+              }`}>
+                {selectedVennArea === 'business' ? 'Business Skills' :
+                 selectedVennArea === 'career' ? 'Career Skills' :
+                 'Alignment Skills'}
+              </span>
+              <button 
+                onClick={() => setSelectedVennArea(null)}
+                className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                Clear filter
+              </button>
+            </div>
+          )}
+        </div>
         <div className="text-sm space-y-2 text-slate-300">
-            {rankedSkills.map(({skill, relevance}, index) => (
+            {filteredSkills.map(({skill, relevance}, index) => (
                 <div key={skill.id} className="grid grid-cols-12 gap-2 items-center bg-slate-800/40 p-2 rounded-md">
                     <div className="col-span-12 sm:col-span-5 flex items-baseline">
                         <span className="text-slate-500 w-6 text-right mr-1">{index + 1}.</span>
@@ -290,6 +824,17 @@ const StepSummary: React.FC<StepSummaryProps> = ({ assessmentData, updateSummary
                     </div>
                 </div>
             ))}
+            {filteredSkills.length === 0 && selectedVennArea && (
+              <div className="text-center text-slate-500 py-8">
+                <p>No skills found for this filter.</p>
+                <button 
+                  onClick={() => setSelectedVennArea(null)}
+                  className="text-cyan-400 hover:text-cyan-300 text-sm mt-2"
+                >
+                  Show all skills
+                </button>
+              </div>
+            )}
         </div>
       </div>
       
@@ -365,11 +910,10 @@ const StepSummary: React.FC<StepSummaryProps> = ({ assessmentData, updateSummary
       {isFeedbackModalOpen && <FeedbackRequestModal onClose={() => setIsFeedbackModalOpen(false)} />}
       {isEmailModalOpen && <EmailGrowthPlanModal onClose={() => setIsEmailModalOpen(false)} />}
       <div className="flex-grow">
-          <div className="flex items-center gap-2 mb-6">
-            <span className="w-5 h-5 bg-purple-400/80 rounded-full flex items-center justify-center text-sm font-bold text-purple-900">
-                📊
-            </span>
-            <h3 className="text-xl font-semibold text-slate-100">{stage === 'report' ? t('header_summary') : t('summary_final_input_title')}</h3>
+          <div className="flex flex-col items-center gap-2 mb-8">
+            <h2 className="text-3xl font-bold text-slate-100 text-center">
+              {stage === 'report' ? 'Talent Readiness Profile' : t('summary_final_input_title')}
+            </h2>
           </div>
           {stage === 'report' ? renderReport() : renderFinalInput()}
       </div>

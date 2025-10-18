@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: skill-gap-mongodb-local
+    restart: unless-stopped
+    ports:
+      - "27018:27017"  # Different port to avoid conflict
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_DATABASE: skill-gap-assessment
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - skill-gap-network
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: skill-gap-backend-local
+    restart: unless-stopped
+    ports:
+      - "3002:3001"  # Different port to avoid conflict
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - MONGODB_URI=mongodb://admin:password123@mongodb:27017/skill-gap-assessment?authSource=admin
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      - CORS_ORIGIN=http://localhost:3000
+    depends_on:
+      - mongodb
+    networks:
+      - skill-gap-network
+
+volumes:
+  mongodb_data:
+
+networks:
+  skill-gap-network:
+    driver: bridge
