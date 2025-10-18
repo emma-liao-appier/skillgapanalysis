@@ -49,46 +49,99 @@ const App: React.FC = () => {
   const [authError, setAuthError] = useState<string | null>(null);
   const [devMode, setDevMode] = useState(false);
   const [assessmentData, setAssessmentData] = useState<AssessmentData>({
+    // 0. meta
+    period: '2025Q4',
+    status: 'draft',
     language: 'English',
+    
+    // 3. Business
     role: '',
-    careerGoal: '',
-    peerFeedback: '',
     businessGoal: 'As a [Your Role], my primary goal for this quarter is to increase team productivity and project delivery speed by 20%.',
     keyResults: '',
     businessSkills: [],
-    careerSkills: [],
     businessFeedbackSupport: '',
     businessFeedbackObstacles: '',
-    careerFeedback: '',
+    
+    // 4. Career
+    careerGoal: '',
+    careerDevelopmentFocus: '',
+    careerFeedbackThemes: '',
+    careerSkills: [],
+    
+    // 5. Summary
     nextSteps: [],
     nextStepsOther: '',
     finalThoughts: '',
+    
+    // 6. Cached analytics
+    readinessBusiness: 0,
+    readinessCareer: 0,
+    alignmentScore: 0,
+    talentType: '',
+    focusAreas: [],
+    categoryAverages: {},
+    
+    // Legacy fields for backward compatibility
+    peerFeedback: '',
+    careerIntro: '',
+    careerFeedback: '',
+    summary: undefined,
   });
 
   // Mock data for developer mode
   const mockAssessmentData: AssessmentData = {
+    // 0. meta
+    period: '2025Q4',
+    status: 'draft',
     language: 'English',
+    
+    // 3. Business
     role: 'Senior Software Engineer',
-    careerGoal: 'I want to become a technical lead and mentor junior developers while building scalable systems.',
-    peerFeedback: 'Great at problem-solving and always willing to help teammates. Could improve on project management.',
     businessGoal: 'As a Senior Software Engineer, my primary goal for this quarter is to increase team productivity and project delivery speed by 20%.',
     keyResults: '- Reduce bug resolution time by 15%\n- Implement two new features for the main product\n- Improve code review efficiency by 25%',
     businessSkills: [
-      { id: '1', name: 'JavaScript Programming', description: 'Advanced JavaScript development', rating: 3, category: 'functional' as any },
-      { id: '2', name: 'Project Management', description: 'Leading technical projects', rating: 2, category: 'leadership' as any },
-      { id: '3', name: 'Code Review', description: 'Reviewing and improving code quality', rating: 4, category: 'communication' as any },
-      { id: '4', name: 'System Design', description: 'Designing scalable architectures', rating: 3, category: 'problem_solving' as any },
-      { id: '5', name: 'Database Optimization', description: 'Optimizing database performance', rating: 2, category: 'functional' as any },
-    ],
-    careerSkills: [
-      { id: '6', name: 'Technical Leadership', description: 'Leading technical teams', rating: 2, category: 'leadership' as any },
-      { id: '7', name: 'Mentoring', description: 'Guiding junior developers', rating: 3, category: 'communication' as any },
-      { id: '8', name: 'Architecture Design', description: 'Designing system architectures', rating: 4, category: 'problem_solving' as any },
-      { id: '9', name: 'Team Communication', description: 'Effective team communication', rating: 4, category: 'communication' as any },
-      { id: '10', name: 'Agile Methodologies', description: 'Agile development practices', rating: 3, category: 'leadership' as any },
+      { skillId: '1', name: 'JavaScript Programming', description: 'Advanced JavaScript development', rating: 3, category: 'functional' as any, tag: 'biz' },
+      { skillId: '2', name: 'Project Management', description: 'Leading technical projects', rating: 2, category: 'leadership' as any, tag: 'biz' },
+      { skillId: '3', name: 'Code Review', description: 'Reviewing and improving code quality', rating: 4, category: 'communication' as any, tag: 'biz' },
+      { skillId: '4', name: 'System Design', description: 'Designing scalable architectures', rating: 3, category: 'problem_solving' as any, tag: 'biz' },
+      { skillId: '5', name: 'Database Optimization', description: 'Optimizing database performance', rating: 2, category: 'functional' as any, tag: 'biz' },
     ],
     businessFeedbackSupport: 'Need more time for focused development work and clearer project priorities.',
     businessFeedbackObstacles: 'Frequent context switching and unclear requirements slow down progress.',
+    
+    // 4. Career
+    careerGoal: 'I want to become a technical lead and mentor junior developers while building scalable systems.',
+    careerDevelopmentFocus: '',
+    careerFeedbackThemes: '',
+    careerSkills: [
+      { skillId: '6', name: 'Technical Leadership', description: 'Leading technical teams', rating: 2, category: 'leadership' as any, tag: 'career' },
+      { skillId: '7', name: 'Mentoring', description: 'Guiding junior developers', rating: 3, category: 'communication' as any, tag: 'career' },
+      { skillId: '8', name: 'Architecture Design', description: 'Designing system architectures', rating: 4, category: 'problem_solving' as any, tag: 'career' },
+      { skillId: '9', name: 'Team Communication', description: 'Effective team communication', rating: 4, category: 'communication' as any, tag: 'career' },
+      { skillId: '10', name: 'Agile Methodologies', description: 'Agile development practices', rating: 3, category: 'leadership' as any, tag: 'career' },
+    ],
+    
+    // 5. Summary
+    nextSteps: [],
+    nextStepsOther: '',
+    finalThoughts: '',
+    
+    // 6. Cached analytics
+    readinessBusiness: 0.75,
+    readinessCareer: 0.68,
+    alignmentScore: 0.8,
+    talentType: 'Emerging Talent',
+    focusAreas: ['leadership', 'communication', 'problem_solving'],
+    categoryAverages: {
+      leadership: { avg: 2.5, gap: 'high' },
+      communication: { avg: 4.0, gap: 'low' },
+      problem_solving: { avg: 3.5, gap: 'medium' },
+      functional: { avg: 2.5, gap: 'high' }
+    },
+    
+    // Legacy fields for backward compatibility
+    peerFeedback: 'Great at problem-solving and always willing to help teammates. Could improve on project management.',
+    careerIntro: '',
     careerFeedback: 'Would benefit from more leadership opportunities and technical mentorship.',
     summary: {
       businessReadiness: 75,
@@ -100,13 +153,10 @@ const App: React.FC = () => {
         'Take on more system design responsibilities to build expertise'
       ]
     },
-    nextSteps: [],
-    nextStepsOther: '',
-    finalThoughts: '',
   };
 
-  const isBusinessComplete = assessmentData.businessSkills.length > 0 && assessmentData.businessSkills.every(s => s.rating > 0);
-  const isCareerComplete = assessmentData.careerSkills.length > 0 && assessmentData.careerSkills.every(s => s.rating > 0);
+  const isBusinessComplete = assessmentData.businessSkills.length > 0 && assessmentData.businessSkills.every(s => s.rating >= 1);
+  const isCareerComplete = assessmentData.careerSkills.length > 0 && assessmentData.careerSkills.every(s => s.rating >= 1);
 
   // Helper function to validate data before saving
   const validateDataBeforeSave = (data: any, dataType: string) => {
@@ -132,7 +182,7 @@ const App: React.FC = () => {
       await apiService.saveBusinessData(user!.email, {
         businessGoal: assessmentData.businessGoal,
         keyResults: assessmentData.keyResults,
-        businessSkills: skills,
+        businessSkills: skills.map(skill => ({ ...skill, tag: 'biz' })),
         businessFeedbackSupport: assessmentData.businessFeedbackSupport,
         businessFeedbackObstacles: assessmentData.businessFeedbackObstacles,
         role: assessmentData.role,
@@ -152,7 +202,7 @@ const App: React.FC = () => {
     if (user?.email) {
       try {
         await apiService.saveCareerData(user.email, {
-          careerSkills: skills,
+          careerSkills: skills.map(skill => ({ ...skill, tag: 'career' })),
           language: assessmentData.language,
         });
       } catch (error) {
@@ -172,7 +222,7 @@ const App: React.FC = () => {
       const dataToSave = {
         businessGoal: assessmentData.businessGoal,
         keyResults: assessmentData.keyResults,
-        businessSkills: assessmentData.businessSkills,
+        businessSkills: assessmentData.businessSkills.map(skill => ({ ...skill, tag: 'biz' })),
         businessFeedbackSupport: assessmentData.businessFeedbackSupport,
         businessFeedbackObstacles: assessmentData.businessFeedbackObstacles,
         role,
@@ -317,7 +367,7 @@ const App: React.FC = () => {
           await apiService.saveBusinessData(user.email, {
             businessGoal: goal,
             keyResults: assessmentData.keyResults,
-            businessSkills: assessmentData.businessSkills,
+            businessSkills: assessmentData.businessSkills.map(skill => ({ ...skill, tag: 'biz' })),
             businessFeedbackSupport: assessmentData.businessFeedbackSupport,
             businessFeedbackObstacles: assessmentData.businessFeedbackObstacles,
             role: assessmentData.role,
@@ -346,7 +396,7 @@ const App: React.FC = () => {
           await apiService.saveBusinessData(user.email, {
             businessGoal: assessmentData.businessGoal,
             keyResults: results,
-            businessSkills: assessmentData.businessSkills,
+            businessSkills: assessmentData.businessSkills.map(skill => ({ ...skill, tag: 'biz' })),
             businessFeedbackSupport: assessmentData.businessFeedbackSupport,
             businessFeedbackObstacles: assessmentData.businessFeedbackObstacles,
             role: assessmentData.role,
