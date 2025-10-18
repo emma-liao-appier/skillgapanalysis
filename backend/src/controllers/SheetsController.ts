@@ -249,12 +249,39 @@ export class SheetsController {
       userId,
       userEmail: userData.email?.toLowerCase(),
       language: 'English',
+      languageSelection: {
+        value: 'English',
+        label: 'English'
+      },
       role: userData.role || 'Unknown Role',
       careerGoal: userData.careerGoal || 'Professional development and growth',
       businessGoal: userData.businessGoal || 'Improve team productivity and project delivery',
       keyResults: '', // Will be generated later
       businessSkills: [],
       careerSkills: [],
+      businessStage: {
+        role: userData.role || 'Unknown Role',
+        goal: userData.businessGoal || 'Improve team productivity and project delivery',
+        keyResults: '',
+        skills: [],
+        supportNeeds: '',
+        obstacles: ''
+      },
+      careerStage: {
+        goal: userData.careerGoal || 'Professional development and growth',
+        peerFeedback: '',
+        intro: '',
+        skills: [],
+        selfReflection: ''
+      },
+      finalInput: {
+        selections: [],
+        otherText: '',
+        reflections: ''
+      },
+      nextSteps: [],
+      nextStepsOther: '',
+      finalThoughts: '',
       status: 'draft'
     });
 

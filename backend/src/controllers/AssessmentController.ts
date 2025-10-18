@@ -363,4 +363,365 @@ export class AssessmentController {
       res.status(500).json({ error: 'Failed to optimize business goal' });
     }
   };
+
+  // Incremental update methods for each step
+  updateLanguage = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { userEmail, language, period } = req.body;
+      
+      if (!userEmail) {
+        res.status(400).json({ error: 'User email is required' });
+        return;
+      }
+
+      // Find or create assessment
+      const user = await User.findOne({ email: userEmail });
+      if (!user) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      let assessment = await Assessment.findOne({ 
+        userId: user._id, 
+        period: period || '2025Q4' 
+      });
+
+      if (!assessment) {
+        assessment = new Assessment({
+          userId: user._id,
+          period: period || '2025Q4',
+          language: language || 'English',
+          status: 'draft'
+        });
+      } else {
+        assessment.language = language || assessment.language;
+      }
+
+      await assessment.save();
+      res.json(assessment);
+    } catch (error) {
+      console.error('Error updating language:', error);
+      res.status(500).json({ error: 'Failed to update language' });
+    }
+  };
+
+  updateBusiness = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { userEmail, role, businessGoal, keyResults, businessSkills, businessFeedbackSupport, businessFeedbackObstacles, period } = req.body;
+      
+      if (!userEmail) {
+        res.status(400).json({ error: 'User email is required' });
+        return;
+      }
+
+      const user = await User.findOne({ email: userEmail });
+      if (!user) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      let assessment = await Assessment.findOne({ 
+        userId: user._id, 
+        period: period || '2025Q4' 
+      });
+
+      if (!assessment) {
+        assessment = new Assessment({
+          userId: user._id,
+          period: period || '2025Q4',
+          language: 'English',
+          status: 'draft'
+        });
+      }
+
+      // Update business fields
+      if (role !== undefined) assessment.role = role;
+      if (businessGoal !== undefined) assessment.businessGoal = businessGoal;
+      if (keyResults !== undefined) assessment.keyResults = keyResults;
+      if (businessSkills !== undefined) {
+        // Ensure skills have proper tag
+        assessment.businessSkills = businessSkills.map((skill: any) => ({
+          ...skill,
+          tag: 'biz'
+        }));
+        
+        // Auto-calculate analytics when skills are updated
+        const analytics = this.calculateAnalytics(assessment);
+        assessment.readinessBusiness = analytics.readinessBusiness;
+        assessment.alignmentScore = analytics.alignmentScore;
+        assessment.talentType = analytics.talentType;
+        assessment.focusAreas = analytics.focusAreas;
+        assessment.categoryAverages = analytics.categoryAverages;
+      }
+      if (businessFeedbackSupport !== undefined) assessment.businessFeedbackSupport = businessFeedbackSupport;
+      if (businessFeedbackObstacles !== undefined) assessment.businessFeedbackObstacles = businessFeedbackObstacles;
+
+      await assessment.save();
+      res.json(assessment);
+    } catch (error) {
+      console.error('Error updating business data:', error);
+      res.status(500).json({ error: 'Failed to update business data' });
+    }
+  };
+
+  updateCareer = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { userEmail, careerGoal, careerDevelopmentFocus, careerFeedbackThemes, careerSkills, period } = req.body;
+      
+      if (!userEmail) {
+        res.status(400).json({ error: 'User email is required' });
+        return;
+      }
+
+      const user = await User.findOne({ email: userEmail });
+      if (!user) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      let assessment = await Assessment.findOne({ 
+        userId: user._id, 
+        period: period || '2025Q4' 
+      });
+
+      if (!assessment) {
+        assessment = new Assessment({
+          userId: user._id,
+          period: period || '2025Q4',
+          language: 'English',
+          status: 'draft'
+        });
+      }
+
+      // Update career fields
+      if (careerGoal !== undefined) assessment.careerGoal = careerGoal;
+      if (careerDevelopmentFocus !== undefined) assessment.careerDevelopmentFocus = careerDevelopmentFocus;
+      if (careerFeedbackThemes !== undefined) assessment.careerFeedbackThemes = careerFeedbackThemes;
+      if (careerSkills !== undefined) {
+        // Ensure skills have proper tag
+        assessment.careerSkills = careerSkills.map((skill: any) => ({
+          ...skill,
+          tag: 'career'
+        }));
+        
+        // Auto-calculate analytics when skills are updated
+        const analytics = this.calculateAnalytics(assessment);
+        assessment.readinessCareer = analytics.readinessCareer;
+        assessment.alignmentScore = analytics.alignmentScore;
+        assessment.talentType = analytics.talentType;
+        assessment.focusAreas = analytics.focusAreas;
+        assessment.categoryAverages = analytics.categoryAverages;
+      }
+
+      await assessment.save();
+      res.json(assessment);
+    } catch (error) {
+      console.error('Error updating career data:', error);
+      res.status(500).json({ error: 'Failed to update career data' });
+    }
+  };
+
+  updateSummary = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { userEmail, nextSteps, nextStepsOther, finalThoughts, period } = req.body;
+      
+      if (!userEmail) {
+        res.status(400).json({ error: 'User email is required' });
+        return;
+      }
+
+      const user = await User.findOne({ email: userEmail });
+      if (!user) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      let assessment = await Assessment.findOne({ 
+        userId: user._id, 
+        period: period || '2025Q4' 
+      });
+
+      if (!assessment) {
+        assessment = new Assessment({
+          userId: user._id,
+          period: period || '2025Q4',
+          language: 'English',
+          status: 'draft'
+        });
+      }
+
+      // Update summary fields
+      if (nextSteps !== undefined) assessment.nextSteps = nextSteps;
+      if (nextStepsOther !== undefined) assessment.nextStepsOther = nextStepsOther;
+      if (finalThoughts !== undefined) assessment.finalThoughts = finalThoughts;
+
+      await assessment.save();
+      res.json(assessment);
+    } catch (error) {
+      console.error('Error updating summary data:', error);
+      res.status(500).json({ error: 'Failed to update summary data' });
+    }
+  };
+
+  updateAnalytics = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { userEmail, readinessBusiness, readinessCareer, alignmentScore, talentType, focusAreas, categoryAverages, period } = req.body;
+      
+      if (!userEmail) {
+        res.status(400).json({ error: 'User email is required' });
+        return;
+      }
+
+      const user = await User.findOne({ email: userEmail });
+      if (!user) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      let assessment = await Assessment.findOne({ 
+        userId: user._id, 
+        period: period || '2025Q4' 
+      });
+
+      if (!assessment) {
+        assessment = new Assessment({
+          userId: user._id,
+          period: period || '2025Q4',
+          language: 'English',
+          status: 'draft'
+        });
+      }
+
+      // Calculate analytics if not provided
+      if (readinessBusiness === undefined || readinessCareer === undefined || alignmentScore === undefined) {
+        const calculatedAnalytics = this.calculateAnalytics(assessment);
+        
+        if (readinessBusiness === undefined) assessment.readinessBusiness = calculatedAnalytics.readinessBusiness;
+        if (readinessCareer === undefined) assessment.readinessCareer = calculatedAnalytics.readinessCareer;
+        if (alignmentScore === undefined) assessment.alignmentScore = calculatedAnalytics.alignmentScore;
+        if (talentType === undefined) assessment.talentType = calculatedAnalytics.talentType;
+        if (focusAreas === undefined) assessment.focusAreas = calculatedAnalytics.focusAreas;
+        if (categoryAverages === undefined) assessment.categoryAverages = calculatedAnalytics.categoryAverages;
+      } else {
+        // Update analytics fields if provided
+        if (readinessBusiness !== undefined) assessment.readinessBusiness = readinessBusiness;
+        if (readinessCareer !== undefined) assessment.readinessCareer = readinessCareer;
+        if (alignmentScore !== undefined) assessment.alignmentScore = alignmentScore;
+        if (talentType !== undefined) assessment.talentType = talentType;
+        if (focusAreas !== undefined) assessment.focusAreas = focusAreas;
+        if (categoryAverages !== undefined) assessment.categoryAverages = categoryAverages;
+      }
+
+      await assessment.save();
+      res.json(assessment);
+    } catch (error) {
+      console.error('Error updating analytics data:', error);
+      res.status(500).json({ error: 'Failed to update analytics data' });
+    }
+  };
+
+  // Calculate analytics based on skills and other data
+  private calculateAnalytics(assessment: IAssessment) {
+    const businessSkills = assessment.businessSkills || [];
+    const careerSkills = assessment.careerSkills || [];
+
+    // Calculate readiness scores (0-1 scale)
+    const businessReadiness = businessSkills.length > 0 
+      ? businessSkills.reduce((sum, skill) => sum + skill.rating, 0) / (businessSkills.length * 5)
+      : 0;
+
+    const careerReadiness = careerSkills.length > 0
+      ? careerSkills.reduce((sum, skill) => sum + skill.rating, 0) / (careerSkills.length * 5)
+      : 0;
+
+    // Calculate alignment score based on business and career goal alignment
+    const alignmentScore = this.calculateAlignmentScore(assessment);
+
+    // Determine talent type based on readiness scores
+    const talentType = this.determineTalentType(businessReadiness, careerReadiness);
+
+    // Calculate focus areas based on skill categories
+    const focusAreas = this.calculateFocusAreas([...businessSkills, ...careerSkills]);
+
+    // Calculate category averages
+    const categoryAverages = this.calculateCategoryAverages([...businessSkills, ...careerSkills]);
+
+    return {
+      readinessBusiness: businessReadiness,
+      readinessCareer: careerReadiness,
+      alignmentScore,
+      talentType,
+      focusAreas,
+      categoryAverages
+    };
+  }
+
+  private calculateAlignmentScore(assessment: IAssessment): number {
+    // Simple alignment calculation based on goal similarity
+    // This could be enhanced with more sophisticated NLP analysis
+    const businessGoal = assessment.businessGoal?.toLowerCase() || '';
+    const careerGoal = assessment.careerGoal?.toLowerCase() || '';
+    
+    if (!businessGoal || !careerGoal) return 0.5;
+
+    // Simple keyword matching for alignment
+    const businessKeywords = businessGoal.split(' ').filter(word => word.length > 3);
+    const careerKeywords = careerGoal.split(' ').filter(word => word.length > 3);
+    
+    const commonKeywords = businessKeywords.filter(keyword => 
+      careerKeywords.some(careerKeyword => 
+        careerKeyword.includes(keyword) || keyword.includes(careerKeyword)
+      )
+    );
+
+    return Math.min(commonKeywords.length / Math.max(businessKeywords.length, careerKeywords.length), 1);
+  }
+
+  private determineTalentType(businessReadiness: number, careerReadiness: number): string {
+    const avgReadiness = (businessReadiness + careerReadiness) / 2;
+    
+    if (avgReadiness >= 0.8) return 'High Performer';
+    if (avgReadiness >= 0.6) return 'Emerging Talent';
+    if (avgReadiness >= 0.4) return 'Developing Professional';
+    return 'Early Career';
+  }
+
+  private calculateFocusAreas(skills: any[]): string[] {
+    const categoryCounts: { [key: string]: number } = {};
+    
+    skills.forEach(skill => {
+      categoryCounts[skill.category] = (categoryCounts[skill.category] || 0) + 1;
+    });
+
+    // Return top 3 categories
+    return Object.entries(categoryCounts)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 3)
+      .map(([category]) => category);
+  }
+
+  private calculateCategoryAverages(skills: any[]): any {
+    const categoryStats: { [key: string]: { total: number, count: number, avg: number, gap: string } } = {};
+    
+    skills.forEach(skill => {
+      if (!categoryStats[skill.category]) {
+        categoryStats[skill.category] = { total: 0, count: 0, avg: 0, gap: 'medium' };
+      }
+      categoryStats[skill.category].total += skill.rating;
+      categoryStats[skill.category].count += 1;
+    });
+
+    // Calculate averages and determine gap levels
+    Object.keys(categoryStats).forEach(category => {
+      const stats = categoryStats[category];
+      stats.avg = stats.total / stats.count;
+      
+      // Add gap level
+      if (stats.avg >= 4) categoryStats[category].gap = 'low';
+      else if (stats.avg >= 3) categoryStats[category].gap = 'medium';
+      else categoryStats[category].gap = 'high';
+    });
+
+    return categoryStats;
+  }
 }

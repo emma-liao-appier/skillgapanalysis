@@ -36,7 +36,7 @@ const AddSkillForm: React.FC<{onAddSkill: (skill: Skill) => void; onCancel: () =
     const loadCatalogueSkills = async (category: string) => {
       setIsLoadingCatalogue(true);
       try {
-        const response = await apiService.getSkillsForAddSkill(category);
+        const response = await apiService.getSkillsForAddSkill(category) as any;
         setCatalogueSkills(response.skills[category] || []);
       } catch (error) {
         console.error('Error loading catalogue skills:', error);
@@ -61,11 +61,12 @@ const AddSkillForm: React.FC<{onAddSkill: (skill: Skill) => void; onCancel: () =
             return;
           }
           onAddSkill({
-            id: selectedCatalogueSkill.skillId,
+            skillId: selectedCatalogueSkill.skillId,
             name: selectedCatalogueSkill.name,
             description: selectedCatalogueSkill.description,
             category: selectedCatalogueSkill.category.toLowerCase() as SkillCategory,
-            rating: 0,
+            rating: 1,
+            tag: 'biz',
           });
         } else {
           if (!name || !description) {
@@ -73,11 +74,12 @@ const AddSkillForm: React.FC<{onAddSkill: (skill: Skill) => void; onCancel: () =
             return;
           }
           onAddSkill({
-            id: `custom-${Date.now()}`,
+            skillId: `custom-${Date.now()}`,
             name,
             description,
             category,
-            rating: 0,
+            rating: 1,
+            tag: 'biz',
           });
         }
     };
@@ -233,12 +235,13 @@ const StepBusiness: React.FC<StepBusinessProps> = ({
       );
       
       // 將推薦的技能轉換為前端格式
-      const fetchedSkills = response.skills.map((skill: any) => ({
-        id: skill.id,
+      const fetchedSkills = (response as any).skills.map((skill: any) => ({
+        skillId: skill.id || skill.skillId,
         name: skill.name,
         description: skill.description,
         category: skill.category.toLowerCase(),
-        rating: 0
+        rating: 1,
+        tag: 'biz'
       }));
       
       updateSkills(fetchedSkills);
@@ -328,13 +331,13 @@ const StepBusiness: React.FC<StepBusinessProps> = ({
 
   const handleRateSkill = (skillId: string, rating: number) => {
     const updatedSkills = assessmentData.businessSkills.map(skill =>
-      skill.id === skillId ? { ...skill, rating } : skill
+      skill.skillId === skillId ? { ...skill, rating } : skill
     );
     updateSkills(updatedSkills);
   };
 
   const handleDeleteSkill = (skillId: string) => {
-    const updatedSkills = assessmentData.businessSkills.filter(skill => skill.id !== skillId);
+    const updatedSkills = assessmentData.businessSkills.filter(skill => skill.skillId !== skillId);
     updateSkills(updatedSkills);
   };
   
@@ -376,9 +379,14 @@ const StepBusiness: React.FC<StepBusinessProps> = ({
 
   // 保存業務資料到資料庫
   const saveBusinessData = async () => {
+    if (!user?.email) {
+      console.error('No user email available for saving business data');
+      return;
+    }
+    
     try {
       await apiService.saveBusinessData(
-        user?.email || 'emma.liao@appier.com', // 使用實際的用戶 email
+        user.email,
         {
           businessGoal: assessmentData.businessGoal,
           keyResults: assessmentData.keyResults,
@@ -470,7 +478,7 @@ const StepBusiness: React.FC<StepBusinessProps> = ({
                 <RatingExplanation />
                 <ul className="space-y-4 mt-6">
                     {assessmentData.businessSkills.map((skill) => (
-                    <SkillRating key={skill.id} skill={skill} onRate={handleRateSkill} onDelete={handleDeleteSkill} />
+                    <SkillRating key={skill.skillId} skill={skill} onRate={handleRateSkill} onDelete={handleDeleteSkill} />
                     ))}
                 </ul>
                 <div className="mt-6">
@@ -518,7 +526,7 @@ const StepBusiness: React.FC<StepBusinessProps> = ({
   
   const isNextDisabled = () => {
     if(stage === 'goal') return !assessmentData.role || !assessmentData.businessGoal;
-    if(stage === 'rating') return assessmentData.businessSkills.length === 0 || assessmentData.businessSkills.some(s => s.rating === 0);
+    if(stage === 'rating') return assessmentData.businessSkills.length === 0 || assessmentData.businessSkills.some(s => s.rating < 1);
     return false;
   }
 

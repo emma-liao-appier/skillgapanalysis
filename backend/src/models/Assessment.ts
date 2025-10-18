@@ -8,15 +8,6 @@ export enum SkillCategory {
   Functional = 'functional',
 }
 
-export interface ISkill {
-  id: string;
-  name: string;
-  description: string;
-  rating: number; // 0 for unrated, 1-5 for rated
-  category: SkillCategory;
-  type?: string; // 'general' or 'functional'
-}
-
 export interface ISummaryData {
   businessReadiness: number;
   careerReadiness: number;
@@ -24,170 +15,182 @@ export interface ISummaryData {
   suggestedNextSteps: string[];
 }
 
-export interface IAdditionalInputs {
-  businessChallenges?: string;      // 業務挑戰
-  careerAspirations?: string;       // 職業抱負
-  learningPreferences?: string[];   // 學習偏好
-  timeAvailability?: string;       // 時間可用性
-  workEnvironment?: string;         // 工作環境偏好
-  motivationFactors?: string[];     // 動機因素
-  developmentBarriers?: string[];   // 發展障礙
+export interface ISkill {
+  skillId: string;
+  name: string;
+  description: string;
+  category: SkillCategory;
+  rating: number; // 1-5 for rated
+  tag: string; // "biz" or "career"
 }
 
+
 export interface IAssessment extends Document {
+  // 0. meta
   userId: mongoose.Types.ObjectId;
-  userEmail: string;
+  period: string;
+  status: 'draft' | 'submitted';
   language: string;
+
+  // 3. Business
   role: string;
-  careerGoal: string;
-  peerFeedback?: string;
-  careerIntro?: string;
   businessGoal: string;
   keyResults: string;
   businessSkills: ISkill[];
+  businessFeedbackSupport: string;
+  businessFeedbackObstacles: string;
+
+  // 4. Career
+  careerGoal: string;
+  careerDevelopmentFocus: string;
+  careerFeedbackThemes: string;
   careerSkills: ISkill[];
-  businessFeedbackSupport?: string;
-  businessFeedbackObstacles?: string;
-  careerFeedback?: string;
-  additionalInputs?: IAdditionalInputs;  // 額外的用戶輸入
-  summary?: ISummaryData;
-  nextSteps?: string[];
-  nextStepsOther?: string;
-  finalThoughts?: string;
-  status: 'draft' | 'completed' | 'archived';
+
+  // 5. Summary
+  nextSteps: string[];
+  nextStepsOther: string;
+  finalThoughts: string;
+
+  // 6. Cached analytics for Summary/報表
+  readinessBusiness: number;
+  readinessCareer: number;
+  alignmentScore: number;
+  talentType: string;
+  focusAreas: string[];
+  categoryAverages: any;
+
+  // 系統欄位
+  submittedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
 
 const SkillSchema = new Schema<ISkill>({
-  id: { type: String, required: true },
+  skillId: { type: String, required: true },
   name: { type: String, required: true },
   description: { type: String, required: true },
-  rating: { type: Number, min: 0, max: 5, default: 0 },
   category: { 
     type: String, 
     enum: Object.values(SkillCategory),
     required: true 
-  }
+  },
+  rating: { type: Number, min: 1, max: 5, default: 1 },
+  tag: { type: String, default: "biz" }
 }, { _id: false });
 
-const AdditionalInputsSchema = new Schema<IAdditionalInputs>({
-  businessChallenges: { 
-    type: String, 
-    trim: true,
-    maxlength: 1000
-  },
-  careerAspirations: { 
-    type: String, 
-    trim: true,
-    maxlength: 1000
-  },
-  learningPreferences: [{
-    type: String,
-    trim: true,
-    maxlength: 200
-  }],
-  timeAvailability: { 
-    type: String, 
-    trim: true,
-    maxlength: 500
-  },
-  workEnvironment: { 
-    type: String, 
-    trim: true,
-    maxlength: 500
-  },
-  motivationFactors: [{
-    type: String,
-    trim: true,
-    maxlength: 200
-  }],
-  developmentBarriers: [{
-    type: String,
-    trim: true,
-    maxlength: 200
-  }]
-}, { _id: false });
-
-const SummaryDataSchema = new Schema<ISummaryData>({
-  businessReadiness: { type: Number, min: 0, max: 100 },
-  careerReadiness: { type: Number, min: 0, max: 100 },
-  recommendations: { type: String },
-  suggestedNextSteps: [{ type: String }]
-}, { _id: false });
 
 const AssessmentSchema = new Schema<IAssessment>({
+  // 0. meta
   userId: {
     type: Schema.Types.ObjectId,
     ref: 'User',
-    required: true
-  },
-  userEmail: {
-    type: String,
     required: true,
-    lowercase: true,
-    trim: true
+    index: true
   },
-  language: {
+  period: {
     type: String,
-    required: true,
-    default: 'English'
-  },
-  role: {
-    type: String,
-    required: true
-  },
-  careerGoal: {
-    type: String,
-    required: true
-  },
-  peerFeedback: {
-    type: String
-  },
-  careerIntro: {
-    type: String
-  },
-  businessGoal: {
-    type: String,
-    required: true
-  },
-  keyResults: {
-    type: String,
-    required: false,
-    default: ''
-  },
-  businessSkills: [SkillSchema],
-  careerSkills: [SkillSchema],
-  businessFeedbackSupport: {
-    type: String
-  },
-  businessFeedbackObstacles: {
-    type: String
-  },
-  careerFeedback: {
-    type: String
-  },
-  additionalInputs: AdditionalInputsSchema,
-  summary: SummaryDataSchema,
-  nextSteps: [{ type: String }],
-  nextStepsOther: {
-    type: String
-  },
-  finalThoughts: {
-    type: String
+    default: "2025Q4",
+    index: true
   },
   status: {
     type: String,
-    enum: ['draft', 'completed', 'archived'],
+    enum: ['draft', 'submitted'],
     default: 'draft'
+  },
+  language: {
+    type: String,
+    default: 'English'
+  },
+
+  // 3. Business
+  role: {
+    type: String,
+    trim: true
+  },
+  businessGoal: {
+    type: String,
+    trim: true
+  },
+  keyResults: {
+    type: String,
+    trim: true
+  },
+  businessSkills: [SkillSchema],
+  businessFeedbackSupport: {
+    type: String,
+    trim: true
+  },
+  businessFeedbackObstacles: {
+    type: String,
+    trim: true
+  },
+
+  // 4. Career
+  careerGoal: {
+    type: String,
+    trim: true
+  },
+  careerDevelopmentFocus: {
+    type: String,
+    trim: true
+  },
+  careerFeedbackThemes: {
+    type: String,
+    trim: true
+  },
+  careerSkills: [SkillSchema],
+
+  // 5. Summary
+  nextSteps: [{ type: String }],
+  nextStepsOther: {
+    type: String,
+    trim: true
+  },
+  finalThoughts: {
+    type: String,
+    trim: true
+  },
+
+  // 6. Cached analytics for Summary/報表
+  readinessBusiness: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 1
+  },
+  readinessCareer: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 1
+  },
+  alignmentScore: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 1
+  },
+  talentType: {
+    type: String,
+    trim: true
+  },
+  focusAreas: [{ type: String }],
+  categoryAverages: {
+    type: Schema.Types.Mixed
+  },
+
+  // 系統欄位
+  submittedAt: {
+    type: Date
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  minimize: false
 });
 
 // Indexes for better query performance
 AssessmentSchema.index({ userId: 1 });
-AssessmentSchema.index({ userEmail: 1 });
+AssessmentSchema.index({ period: 1 });
 AssessmentSchema.index({ status: 1 });
 AssessmentSchema.index({ createdAt: -1 });
 AssessmentSchema.index({ role: 1 });

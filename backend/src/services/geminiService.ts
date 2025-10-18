@@ -179,11 +179,12 @@ export class GeminiService {
       const generalSkills: ISkill[] = parsedResponse.generalSkillNames.map((name: string) => {
         const foundSkill = allPredefinedSkills.find((s: any) => s.name === name);
         return {
-          id: `skill-${Date.now()}-${Math.random()}`,
+          skillId: `skill-${Date.now()}-${Math.random()}`,
           name: name,
           description: foundSkill ? foundSkill.description : 'A key general skill for professional development.',
           category: foundSkill ? foundSkill.category : SkillCategory.ProblemSolving,
-          rating: 0,
+          rating: 1,
+          tag: 'biz',
         };
       }).slice(0, 3);
 
@@ -199,21 +200,23 @@ export class GeminiService {
           );
           if (existingSkill) {
             functionalSkills.push({
-              id: existingSkill.skillId || `skill-${Date.now()}-${Math.random()}`,
+              skillId: existingSkill.skillId || `skill-${Date.now()}-${Math.random()}`,
               name: existingSkill.name,
               description: existingSkill.description,
               category: SkillCategory.Functional,
-              rating: 0,
+              rating: 1,
+              tag: 'biz',
             });
           }
         } else {
           // 沒有重複，生成新技能
           functionalSkills.push({
-            id: `skill-${Date.now()}-${Math.random()}`,
+            skillId: `skill-${Date.now()}-${Math.random()}`,
             name: skill.name,
             description: skill.description,
             category: SkillCategory.Functional,
-            rating: 0,
+            rating: 1,
+          tag: 'career',
           });
         }
       }
@@ -362,12 +365,12 @@ export class GeminiService {
       const generalSkills: ISkill[] = parsedResponse.generalSkillNames.map((name: string) => {
         const foundSkill = allPredefinedSkills.find((s: any) => s.name === name);
         return {
-          id: `skill-${Date.now()}-${Math.random()}`,
+          skillId: `skill-${Date.now()}-${Math.random()}`,
           name: name,
           description: foundSkill ? foundSkill.description : 'A key general skill for professional development.',
           category: foundSkill ? foundSkill.category : SkillCategory.ProblemSolving,
-          rating: 0,
-          type: 'general',
+          rating: 1,
+          tag: 'career',
         };
       }).slice(0, 3);
 
@@ -383,23 +386,23 @@ export class GeminiService {
           );
           if (existingSkill) {
             functionalSkills.push({
-              id: existingSkill.skillId || `skill-${Date.now()}-${Math.random()}`,
+              skillId: existingSkill.skillId || `skill-${Date.now()}-${Math.random()}`,
               name: existingSkill.name,
               description: existingSkill.description,
               category: SkillCategory.Functional,
-              type: 'functional',
-              rating: 0,
+              rating: 1,
+              tag: 'biz',
             });
           }
         } else {
           // 沒有重複，生成新技能
           functionalSkills.push({
-            id: `skill-${Date.now()}-${Math.random()}`,
+            skillId: `skill-${Date.now()}-${Math.random()}`,
             name: skill.name,
             description: skill.description,
-            type: 'functional',
             category: SkillCategory.Functional,
-            rating: 0,
+            rating: 1,
+            tag: 'career',
           });
         }
       }

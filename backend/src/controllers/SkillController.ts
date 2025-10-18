@@ -155,7 +155,7 @@ export class SkillController {
 
       // 將推薦的技能格式化為前端需要的格式
       const formattedSkills = recommendedSkills.map(skill => ({
-        id: skill.id,
+        skillId: skill.skillId || `skill-${Date.now()}-${Math.random()}`,
         name: skill.name,
         description: skill.description,
         category: skill.category,

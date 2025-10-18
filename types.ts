@@ -23,11 +23,12 @@ export enum SkillCategory {
 
 
 export interface Skill {
-  id: string;
+  skillId: string;
   name: string;
   description: string;
-  rating: number; // 0 for unrated, 1-5 for rated
+  rating: number; // 1-5 for rated
   category: SkillCategory;
+  tag: string; // "biz" or "career"
 }
 
 export interface SummaryData {
@@ -38,20 +39,41 @@ export interface SummaryData {
 }
 
 export interface AssessmentData {
+  // 0. meta
+  period: string;
+  status: 'draft' | 'submitted';
   language: string;
+
+  // 3. Business
   role: string;
-  careerGoal: string;
-  peerFeedback: string;
-  careerIntro?: string;
   businessGoal: string;
   keyResults: string;
   businessSkills: Skill[];
+  businessFeedbackSupport: string;
+  businessFeedbackObstacles: string;
+
+  // 4. Career
+  careerGoal: string;
+  careerDevelopmentFocus: string;
+  careerFeedbackThemes: string;
   careerSkills: Skill[];
-  businessFeedbackSupport?: string;
-  businessFeedbackObstacles?: string;
+
+  // 5. Summary
+  nextSteps: string[];
+  nextStepsOther: string;
+  finalThoughts: string;
+
+  // 6. Cached analytics for Summary/報表
+  readinessBusiness: number;
+  readinessCareer: number;
+  alignmentScore: number;
+  talentType: string;
+  focusAreas: string[];
+  categoryAverages: any;
+
+  // Legacy fields for backward compatibility
+  peerFeedback?: string;
+  careerIntro?: string;
   careerFeedback?: string;
   summary?: SummaryData;
-  nextSteps?: string[];
-  nextStepsOther?: string;
-  finalThoughts?: string;
 }

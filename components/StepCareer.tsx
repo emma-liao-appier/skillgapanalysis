@@ -22,7 +22,7 @@ const AddSkillForm: React.FC<{onAddSkill: (skill: Skill) => void; onCancel: () =
     const loadCatalogueSkills = async (category: string) => {
       setIsLoadingCatalogue(true);
       try {
-        const response = await apiService.getSkillsForAddSkill(category);
+        const response = await apiService.getSkillsForAddSkill(category) as any;
         setCatalogueSkills(response.skills[category] || []);
       } catch (error) {
         console.error('Error loading catalogue skills:', error);
@@ -47,11 +47,12 @@ const AddSkillForm: React.FC<{onAddSkill: (skill: Skill) => void; onCancel: () =
             return;
           }
           onAddSkill({
-            id: selectedCatalogueSkill.skillId || `skill-${Date.now()}`,
+            skillId: selectedCatalogueSkill.skillId || `skill-${Date.now()}`,
             name: selectedCatalogueSkill.name,
             description: selectedCatalogueSkill.description,
             category: selectedCatalogueSkill.category,
-            rating: 0,
+            rating: 1,
+            tag: 'career',
           });
         } else {
           if (!name || !description) {
@@ -59,11 +60,12 @@ const AddSkillForm: React.FC<{onAddSkill: (skill: Skill) => void; onCancel: () =
             return;
           }
           onAddSkill({
-            id: `custom-${Date.now()}`,
+            skillId: `custom-${Date.now()}`,
             name,
             description,
             category,
-            rating: 0,
+            rating: 1,
+            tag: 'career',
           });
         }
     };
@@ -288,13 +290,13 @@ const StepCareer: React.FC<StepCareerProps> = ({
 
   const handleRateSkill = (skillId: string, rating: number) => {
     const updatedSkills = assessmentData.careerSkills.map(skill =>
-      skill.id === skillId ? { ...skill, rating } : skill
+      skill.skillId === skillId ? { ...skill, rating } : skill
     );
     updateSkills(updatedSkills);
   };
 
   const handleDeleteSkill = (skillId: string) => {
-    const updatedSkills = assessmentData.careerSkills.filter(skill => skill.id !== skillId);
+    const updatedSkills = assessmentData.careerSkills.filter(skill => skill.skillId !== skillId);
     updateSkills(updatedSkills);
   };
 
@@ -334,7 +336,7 @@ const StepCareer: React.FC<StepCareerProps> = ({
       if (isReady) return false; // Enable button when ready
       return !assessmentData.careerGoal || isOptimizing || isLoading;
     }
-    if (stage === 'rating') return assessmentData.careerSkills.length === 0 || assessmentData.careerSkills.some(s => s.rating === 0);
+    if (stage === 'rating') return assessmentData.careerSkills.length === 0 || assessmentData.careerSkills.some(s => s.rating < 1);
     return false;
   }
   
@@ -398,7 +400,7 @@ const StepCareer: React.FC<StepCareerProps> = ({
                     <RatingExplanation />
                     <ul className="space-y-4 mt-6">
                         {assessmentData.careerSkills.map((skill) => (
-                        <SkillRating key={skill.id} skill={skill} onRate={handleRateSkill} onDelete={handleDeleteSkill} />
+                        <SkillRating key={skill.skillId} skill={skill} onRate={handleRateSkill} onDelete={handleDeleteSkill} />
                         ))}
                     </ul>
                     <div className="mt-6">

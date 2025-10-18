@@ -290,7 +290,7 @@ export class FeedbackController {
         assessmentId,
         responseCount: responses.length,
         aggregatedRatings: Object.entries(aggregatedRatings).map(([skillId, data]) => {
-          const skill = allSkills.find(s => s.id === skillId);
+          const skill = allSkills.find(s => s.skillId === skillId);
           return {
             skillId,
             skillName: skill?.name || 'Unknown Skill',

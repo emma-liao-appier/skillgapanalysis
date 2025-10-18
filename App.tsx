@@ -20,6 +20,7 @@ declare global {
     businessFeedbackObstaclesSaveTimeout?: NodeJS.Timeout;
     careerGoalSaveTimeout?: NodeJS.Timeout;
     careerFeedbackSaveTimeout?: NodeJS.Timeout;
+    careerIntroSaveTimeout?: NodeJS.Timeout;
     roleSaveTimeout?: NodeJS.Timeout;
     peerFeedbackSaveTimeout?: NodeJS.Timeout;
   }
@@ -107,8 +108,41 @@ const App: React.FC = () => {
   const isBusinessComplete = assessmentData.businessSkills.length > 0 && assessmentData.businessSkills.every(s => s.rating > 0);
   const isCareerComplete = assessmentData.careerSkills.length > 0 && assessmentData.careerSkills.every(s => s.rating > 0);
 
-  const updateBusinessSkills = (skills: Skill[]) => {
+  // Helper function to validate data before saving
+  const validateDataBeforeSave = (data: any, dataType: string) => {
+    if (!user?.email) {
+      console.error(`Cannot save ${dataType}: No user email available`);
+      return false;
+    }
+    if (!data || (typeof data === 'object' && Object.keys(data).length === 0)) {
+      console.error(`Cannot save ${dataType}: Data is empty`);
+      return false;
+    }
+    return true;
+  };
+
+  const updateBusinessSkills = async (skills: Skill[]) => {
     setAssessmentData(prev => ({ ...prev, businessSkills: skills }));
+    
+    // Save business skills to database
+    if (!validateDataBeforeSave(skills, 'business skills')) return;
+    
+    try {
+      console.log('Saving business skills:', skills);
+      await apiService.saveBusinessData(user!.email, {
+        businessGoal: assessmentData.businessGoal,
+        keyResults: assessmentData.keyResults,
+        businessSkills: skills,
+        businessFeedbackSupport: assessmentData.businessFeedbackSupport,
+        businessFeedbackObstacles: assessmentData.businessFeedbackObstacles,
+        role: assessmentData.role,
+        language: assessmentData.language,
+      });
+      console.log('Business skills saved successfully');
+    } catch (error) {
+      console.error('Error saving business skills:', error);
+      alert('Failed to save business skills. Please try again.');
+    }
   };
 
   const updateCareerSkills = async (skills: Skill[]) => {
@@ -243,16 +277,27 @@ const App: React.FC = () => {
     }
   };
 
-  const updateCareerIntro = (intro: string) => {
+  const updateCareerIntro = async (intro: string) => {
     setAssessmentData(prev => ({ ...prev, careerIntro: intro }));
 
+    // Save career intro to database with debounced saving
     if (user?.email) {
-      apiService.saveCareerData(user.email, {
-        careerIntro: intro,
-        language: assessmentData.language,
-      }).catch(error => {
-        console.error('Error saving career intro:', error);
-      });
+      // Clear previous timeout
+      if (window.careerIntroSaveTimeout) {
+        clearTimeout(window.careerIntroSaveTimeout);
+      }
+      
+      // Set new timeout for 1 second debounce
+      window.careerIntroSaveTimeout = setTimeout(async () => {
+        try {
+          await apiService.saveCareerData(user.email, {
+            careerIntro: intro,
+            language: assessmentData.language,
+          });
+        } catch (error) {
+          console.error('Error saving career intro:', error);
+        }
+      }, 1000);
     }
   };
 
@@ -327,14 +372,22 @@ const App: React.FC = () => {
       // 設置新的定時器，1秒後保存
       window.businessFeedbackSupportSaveTimeout = setTimeout(async () => {
         try {
+          // Use current state values instead of closure values
+          const currentData = await new Promise<AssessmentData>((resolve) => {
+            setAssessmentData(current => {
+              resolve(current);
+              return current;
+            });
+          });
+          
           await apiService.saveBusinessData(user.email, {
-            businessGoal: assessmentData.businessGoal,
-            keyResults: assessmentData.keyResults,
-            businessSkills: assessmentData.businessSkills,
-            businessFeedbackSupport: feedback,
-            businessFeedbackObstacles: assessmentData.businessFeedbackObstacles,
-            role: assessmentData.role,
-            language: assessmentData.language,
+            businessGoal: currentData.businessGoal,
+            keyResults: currentData.keyResults,
+            businessSkills: currentData.businessSkills,
+            businessFeedbackSupport: currentData.businessFeedbackSupport,
+            businessFeedbackObstacles: currentData.businessFeedbackObstacles,
+            role: currentData.role,
+            language: currentData.language,
           });
         } catch (error) {
           console.error('Error saving business feedback support:', error);
@@ -356,14 +409,22 @@ const App: React.FC = () => {
       // 設置新的定時器，1秒後保存
       window.businessFeedbackObstaclesSaveTimeout = setTimeout(async () => {
         try {
+          // Use current state values instead of closure values
+          const currentData = await new Promise<AssessmentData>((resolve) => {
+            setAssessmentData(current => {
+              resolve(current);
+              return current;
+            });
+          });
+          
           await apiService.saveBusinessData(user.email, {
-            businessGoal: assessmentData.businessGoal,
-            keyResults: assessmentData.keyResults,
-            businessSkills: assessmentData.businessSkills,
-            businessFeedbackSupport: assessmentData.businessFeedbackSupport,
-            businessFeedbackObstacles: feedback,
-            role: assessmentData.role,
-            language: assessmentData.language,
+            businessGoal: currentData.businessGoal,
+            keyResults: currentData.keyResults,
+            businessSkills: currentData.businessSkills,
+            businessFeedbackSupport: currentData.businessFeedbackSupport,
+            businessFeedbackObstacles: currentData.businessFeedbackObstacles,
+            role: currentData.role,
+            language: currentData.language,
           });
         } catch (error) {
           console.error('Error saving business feedback obstacles:', error);
@@ -396,8 +457,24 @@ const App: React.FC = () => {
     }
   };
 
-  const updateSummary = (summary: SummaryData) => {
+  const updateSummary = async (summary: SummaryData) => {
     setAssessmentData(prev => ({ ...prev, summary }));
+    
+    // Save summary to database
+    if (user?.email) {
+      try {
+        console.log('Saving summary data:', summary);
+        await apiService.saveCareerData(user.email, {
+          summary,
+          language: assessmentData.language,
+        });
+        console.log('Summary saved successfully');
+      } catch (error) {
+        console.error('Error saving summary:', error);
+        // Show user-friendly error message
+        alert('Failed to save summary. Please try again.');
+      }
+    }
   };
   
   const updateNextSteps = async (steps: string[]) => {

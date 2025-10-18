@@ -3,6 +3,8 @@ import { AssessmentData, Skill, SummaryData } from '../types';
 type AssessmentStatus = 'draft' | 'completed' | 'archived';
 
 type AssessmentUpdatePayload = Partial<AssessmentData> & {
+  languageCode?: string;
+  languageLabel?: string;
   additionalInputs?: any;
   status?: AssessmentStatus;
 };
@@ -36,38 +38,121 @@ class ApiService {
     return this.userProfileCache[cacheKey];
   }
 
-  private buildAssessmentUpdatePayload(userProfile: any, updates: AssessmentUpdatePayload) {
+  private buildAssessmentUpdatePayload(userProfile: any, updates: AssessmentUpdatePayload, existing?: any) {
     const payload: any = {
       userEmail: this.normalizeEmail(userProfile.email),
     };
 
-    const fields: (keyof AssessmentUpdatePayload)[] = [
-      'language',
-      'role',
-      'careerGoal',
-      'peerFeedback',
-      'careerIntro',
-      'businessGoal',
-      'keyResults',
-      'businessSkills',
-      'careerSkills',
-      'businessFeedbackSupport',
-      'businessFeedbackObstacles',
-      'careerFeedback',
-      'summary',
-      'nextSteps',
-      'nextStepsOther',
-      'finalThoughts',
-      'additionalInputs',
-      'status'
-    ];
+    const currentAssessment = existing ?? {};
 
-    fields.forEach(field => {
-      const value = updates[field];
-      if (value !== undefined) {
-        payload[field] = this.cloneValue(value);
-      }
-    });
+    const resolveLanguage = (value?: string) => value ?? currentAssessment.language ?? 'English';
+    const languageValue = updates.language;
+
+    if (languageValue !== undefined) {
+      payload.language = languageValue;
+    }
+
+    if (
+      languageValue !== undefined ||
+      updates.languageCode !== undefined ||
+      updates.languageLabel !== undefined ||
+      currentAssessment.languageSelection
+    ) {
+      const resolvedLanguage = resolveLanguage(languageValue);
+      payload.languageSelection = {
+        code: updates.languageCode ?? currentAssessment.languageSelection?.code,
+        label: updates.languageLabel ?? currentAssessment.languageSelection?.label ?? resolvedLanguage,
+        value: resolvedLanguage
+      };
+    }
+
+    const businessStage: any = { ...(currentAssessment.businessStage || {}) };
+    if (updates.role !== undefined) {
+      payload.role = updates.role;
+      businessStage.role = updates.role;
+    }
+    if (updates.businessGoal !== undefined) {
+      payload.businessGoal = updates.businessGoal;
+      businessStage.goal = updates.businessGoal;
+    }
+    if (updates.keyResults !== undefined) {
+      payload.keyResults = updates.keyResults;
+      businessStage.keyResults = updates.keyResults;
+    }
+    if (updates.businessSkills !== undefined) {
+      const clonedSkills = this.cloneValue(updates.businessSkills);
+      payload.businessSkills = clonedSkills;
+      businessStage.skills = clonedSkills;
+    }
+    if (updates.businessFeedbackSupport !== undefined) {
+      payload.businessFeedbackSupport = updates.businessFeedbackSupport ?? '';
+      businessStage.supportNeeds = updates.businessFeedbackSupport ?? '';
+    }
+    if (updates.businessFeedbackObstacles !== undefined) {
+      payload.businessFeedbackObstacles = updates.businessFeedbackObstacles ?? '';
+      businessStage.obstacles = updates.businessFeedbackObstacles ?? '';
+    }
+    if (Object.keys(businessStage).length > 0) {
+      payload.businessStage = businessStage;
+    }
+
+    const careerStage: any = { ...(currentAssessment.careerStage || {}) };
+    if (updates.careerGoal !== undefined) {
+      payload.careerGoal = updates.careerGoal;
+      careerStage.goal = updates.careerGoal;
+    }
+    if (updates.peerFeedback !== undefined) {
+      payload.peerFeedback = updates.peerFeedback ?? '';
+      careerStage.peerFeedback = updates.peerFeedback ?? '';
+    }
+    if (updates.careerIntro !== undefined) {
+      payload.careerIntro = updates.careerIntro ?? '';
+      careerStage.intro = updates.careerIntro ?? '';
+    }
+    if (updates.careerSkills !== undefined) {
+      const clonedCareerSkills = this.cloneValue(updates.careerSkills);
+      payload.careerSkills = clonedCareerSkills;
+      careerStage.skills = clonedCareerSkills;
+    }
+    if (updates.careerFeedback !== undefined) {
+      payload.careerFeedback = updates.careerFeedback ?? '';
+      careerStage.selfReflection = updates.careerFeedback ?? '';
+    }
+    if (Object.keys(careerStage).length > 0) {
+      payload.careerStage = careerStage;
+    }
+
+    const finalInput: any = { ...(currentAssessment.finalInput || {}) };
+    if (updates.nextSteps !== undefined) {
+      const selections = this.cloneValue(updates.nextSteps);
+      payload.nextSteps = selections;
+      finalInput.selections = selections;
+    }
+    if (updates.nextStepsOther !== undefined) {
+      const other = updates.nextStepsOther ?? '';
+      payload.nextStepsOther = other;
+      finalInput.otherText = other;
+    }
+    if (updates.finalThoughts !== undefined) {
+      const reflections = updates.finalThoughts ?? '';
+      payload.finalThoughts = reflections;
+      finalInput.reflections = reflections;
+    }
+    if (Object.keys(finalInput).length > 0) {
+      payload.finalInput = finalInput;
+    }
+
+    if (updates.summary !== undefined) {
+      payload.summary = this.cloneValue(updates.summary);
+    }
+
+    if (updates.additionalInputs !== undefined) {
+      payload.additionalInputs = this.cloneValue(updates.additionalInputs);
+    }
+
+    if (updates.status !== undefined) {
+      payload.status = updates.status;
+    }
 
     return payload;
   }
@@ -102,23 +187,57 @@ class ApiService {
       payload.additionalInputs = this.cloneValue(updates.additionalInputs);
     }
 
+    payload.languageSelection = {
+      code: updates.languageCode ?? undefined,
+      label: updates.languageLabel ?? payload.language,
+      value: payload.language
+    };
+
+    payload.businessStage = {
+      role: payload.role,
+      goal: payload.businessGoal,
+      keyResults: payload.keyResults,
+      skills: payload.businessSkills,
+      supportNeeds: payload.businessFeedbackSupport,
+      obstacles: payload.businessFeedbackObstacles
+    };
+
+    payload.careerStage = {
+      goal: payload.careerGoal,
+      peerFeedback: payload.peerFeedback,
+      intro: payload.careerIntro,
+      skills: payload.careerSkills,
+      selfReflection: payload.careerFeedback
+    };
+
+    payload.finalInput = {
+      selections: payload.nextSteps,
+      otherText: payload.nextStepsOther,
+      reflections: payload.finalThoughts
+    };
+
     return payload;
   }
 
   private async upsertAssessment(userProfile: any, updates: AssessmentUpdatePayload) {
-    const assessments = await this.getUserAssessments(userProfile.id) as any[];
+    try {
+      const assessments = await this.getUserAssessments(userProfile.id) as any[];
 
-    if (assessments.length > 0) {
-      const latestAssessment = assessments.sort(
-        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      )[0];
+      if (assessments.length > 0) {
+        const latestAssessment = assessments.sort(
+          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        )[0];
 
-      const updatePayload = this.buildAssessmentUpdatePayload(userProfile, updates);
-      return this.updateAssessment(latestAssessment._id, updatePayload);
+        const updatePayload = this.buildAssessmentUpdatePayload(userProfile, updates, latestAssessment);
+        return this.updateAssessment(latestAssessment._id, updatePayload);
+      }
+
+      const createPayload = this.buildAssessmentCreatePayload(userProfile, updates);
+      return this.createAssessment(createPayload as any);
+    } catch (error) {
+      console.error('Error in upsertAssessment:', error);
+      throw error;
     }
-
-    const createPayload = this.buildAssessmentCreatePayload(userProfile, updates);
-    return this.createAssessment(createPayload as any);
   }
   
   private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -230,6 +349,7 @@ class ApiService {
   }
 
   async updateAssessment(assessmentId: string, updates: Partial<AssessmentData>) {
+    console.log('Updating assessment:', assessmentId, 'with data:', updates);
     return this.makeRequest(`/api/assessments/${assessmentId}`, {
       method: 'PUT',
       body: JSON.stringify(updates),
@@ -259,18 +379,41 @@ class ApiService {
     });
   }
 
-  // 保存業務目標和關鍵結果
+  // 保存業務目標和關鍵結果 - 使用新的增量更新 API
   async saveBusinessData(email: string, updates: AssessmentUpdatePayload) {
-    const userProfile = await this.getCachedUserProfile(email);
-    const normalizedEmail = this.normalizeEmail(email);
+    try {
+      console.log('Saving business data for:', email, 'with updates:', updates);
+      const userProfile = await this.getCachedUserProfile(email);
+      const normalizedEmail = this.normalizeEmail(email);
 
-    if (updates.businessGoal && updates.businessGoal !== userProfile.q4Okr) {
-      const updatedUser = await this.updateUser(userProfile.id, { q4Okr: updates.businessGoal });
-      userProfile.q4Okr = updatedUser.q4Okr;
-      this.userProfileCache[normalizedEmail] = userProfile;
+      if (updates.businessGoal && updates.businessGoal !== userProfile.q4Okr) {
+        console.log('Updating user q4Okr:', updates.businessGoal);
+        const updatedUser = await this.updateUser(userProfile.id, { q4Okr: updates.businessGoal });
+        userProfile.q4Okr = updatedUser.q4Okr;
+        this.userProfileCache[normalizedEmail] = userProfile;
+      }
+
+      // 使用新的增量更新 API
+      const result = await this.makeRequest('/api/assessments/incremental/business', {
+        method: 'PUT',
+        body: JSON.stringify({
+          userEmail: normalizedEmail,
+          period: '2025Q4',
+          role: updates.role,
+          businessGoal: updates.businessGoal,
+          keyResults: updates.keyResults,
+          businessSkills: updates.businessSkills,
+          businessFeedbackSupport: updates.businessFeedbackSupport,
+          businessFeedbackObstacles: updates.businessFeedbackObstacles
+        })
+      });
+
+      console.log('Business data saved successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('Error saving business data:', error);
+      throw error;
     }
-
-    return this.upsertAssessment(userProfile, updates);
   }
 
   // 載入用戶的評估資料
@@ -287,10 +430,89 @@ class ApiService {
     return null;
   }
 
-  // 保存職業發展資料到資料庫
+  // 保存職業發展資料到資料庫 - 使用新的增量更新 API
   async saveCareerData(email: string, updates: AssessmentUpdatePayload) {
-    const userProfile = await this.getCachedUserProfile(email);
-    return this.upsertAssessment(userProfile, updates);
+    try {
+      console.log('Saving career data for:', email, 'with updates:', updates);
+      const userProfile = await this.getCachedUserProfile(email);
+      const normalizedEmail = this.normalizeEmail(email);
+
+      // 使用新的增量更新 API
+      const result = await this.makeRequest('/api/assessments/incremental/career', {
+        method: 'PUT',
+        body: JSON.stringify({
+          userEmail: normalizedEmail,
+          period: '2025Q4',
+          careerGoal: updates.careerGoal,
+          careerDevelopmentFocus: updates.careerDevelopmentFocus,
+          careerFeedbackThemes: updates.careerFeedbackThemes,
+          careerSkills: updates.careerSkills
+        })
+      });
+
+      console.log('Career data saved successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('Error saving career data:', error);
+      throw error;
+    }
+  }
+
+  // 保存摘要資料 - 使用新的增量更新 API
+  async saveSummaryData(email: string, updates: AssessmentUpdatePayload) {
+    try {
+      console.log('Saving summary data for:', email, 'with updates:', updates);
+      const userProfile = await this.getCachedUserProfile(email);
+      const normalizedEmail = this.normalizeEmail(email);
+
+      // 使用新的增量更新 API
+      const result = await this.makeRequest('/api/assessments/incremental/summary', {
+        method: 'PUT',
+        body: JSON.stringify({
+          userEmail: normalizedEmail,
+          period: '2025Q4',
+          nextSteps: updates.nextSteps,
+          nextStepsOther: updates.nextStepsOther,
+          finalThoughts: updates.finalThoughts
+        })
+      });
+
+      console.log('Summary data saved successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('Error saving summary data:', error);
+      throw error;
+    }
+  }
+
+  // 保存分析資料 - 使用新的增量更新 API
+  async saveAnalyticsData(email: string, updates: AssessmentUpdatePayload) {
+    try {
+      console.log('Saving analytics data for:', email, 'with updates:', updates);
+      const userProfile = await this.getCachedUserProfile(email);
+      const normalizedEmail = this.normalizeEmail(email);
+
+      // 使用新的增量更新 API
+      const result = await this.makeRequest('/api/assessments/incremental/analytics', {
+        method: 'PUT',
+        body: JSON.stringify({
+          userEmail: normalizedEmail,
+          period: '2025Q4',
+          readinessBusiness: updates.readinessBusiness,
+          readinessCareer: updates.readinessCareer,
+          alignmentScore: updates.alignmentScore,
+          talentType: updates.talentType,
+          focusAreas: updates.focusAreas,
+          categoryAverages: updates.categoryAverages
+        })
+      });
+
+      console.log('Analytics data saved successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('Error saving analytics data:', error);
+      throw error;
+    }
   }
 
   // AI-powered generation

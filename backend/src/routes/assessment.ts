@@ -39,4 +39,11 @@ router.post('/:id/generate-summary', assessmentController.generateSummary);
 // Optimize text (for career goals, etc.)
 router.post('/optimize-text', assessmentController.optimizeText);
 
+// Incremental update endpoints for each step
+router.put('/incremental/language', assessmentController.updateLanguage);
+router.put('/incremental/business', assessmentController.updateBusiness);
+router.put('/incremental/career', assessmentController.updateCareer);
+router.put('/incremental/summary', assessmentController.updateSummary);
+router.put('/incremental/analytics', assessmentController.updateAnalytics);
+
 export default router;
