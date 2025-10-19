@@ -68,7 +68,7 @@ const StepIntro: React.FC<StepIntroProps> = ({ user, onNext }) => {
       
       <button
         onClick={onNext}
-        className="px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold rounded-full hover:from-blue-600 hover:to-blue-700 transition-all duration-200 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transform hover:scale-105"
+        className="px-8 py-3 bg-cyan-500 text-white font-semibold rounded-full hover:bg-cyan-600 transition-colors shadow-lg shadow-cyan-500/20"
       >
         Start Assessment
       </button>

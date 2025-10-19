@@ -1,5 +1,5 @@
 import React from 'react';
-import { Step, AssessmentData } from '../types.ts';
+import { Step, AssessmentData } from '../types';
 import { useLanguage } from '../context/LanguageContext';
 
 interface FooterProps {

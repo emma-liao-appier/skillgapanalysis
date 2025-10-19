@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Skill, SkillCategory } from '../types';
+import { Skill, SkillCategory } from '../types.ts';
 import { useLanguage } from '../context/LanguageContext';
 
 interface SkillRatingProps {

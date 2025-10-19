@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import { ISkill, ISummaryData, SkillCategory } from '../models/Assessment';
-import { renderPrompt, PromptRenderer } from '../../../lib/prompts';
-import { generateAlignmentAnalysis, calculateReadinessLevel, determineTalentType } from '../../../lib/alignmentScore';
+import { renderPrompt, PromptRenderer } from '../lib/prompts';
+import { generateAlignmentAnalysis, calculateReadinessLevel, determineTalentType } from '../lib/alignmentScore';
 
 export class GeminiService {
   private client: GoogleGenAI;

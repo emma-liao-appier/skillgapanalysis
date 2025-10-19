@@ -3,7 +3,7 @@
  * 基於多維度分析的對齊度計算系統
  */
 
-import { Skill, SkillCategory } from '../types.ts';
+import { ISkill, SkillCategory } from '../models/Assessment';
 
 export interface AlignmentScoreComponents {
   skillOverlapRate: number;
@@ -36,8 +36,8 @@ export function computeAlignmentScore({
   careerGoal = '',
   semanticMatch = null
 }: {
-  businessSkills: Skill[];
-  careerSkills: Skill[];
+  businessSkills: ISkill[];
+  careerSkills: ISkill[];
   businessGoal?: string;
   careerGoal?: string;
   semanticMatch?: number | null;
@@ -70,7 +70,7 @@ export function computeAlignmentScore({
     sharedRatings.length > 0 ? sharedRatings.reduce((a, b) => a + b, 0) / sharedRatings.length : 0;
 
   /** ---------- 3️⃣ Compute Category Balance ---------- **/
-  const countByCategory = (arr: Skill[]) => {
+  const countByCategory = (arr: ISkill[]) => {
     const out: Record<string, number> = {};
     arr.forEach(s => (out[s.category] = (out[s.category] || 0) + 1));
     const total = Object.values(out).reduce((a, b) => a + b, 0) || 1;
@@ -125,8 +125,8 @@ export function computeAlignmentScore({
  * Generate alignment analysis with insights
  */
 export function generateAlignmentAnalysis(
-  businessSkills: Skill[],
-  careerSkills: Skill[],
+  businessSkills: ISkill[],
+  careerSkills: ISkill[],
   businessGoal: string,
   careerGoal: string,
   semanticMatch?: number | null
@@ -162,8 +162,8 @@ export function generateAlignmentAnalysis(
  */
 function generateAlignmentInsights(
   components: AlignmentScoreComponents,
-  businessSkills: Skill[],
-  careerSkills: Skill[]
+  businessSkills: ISkill[],
+  careerSkills: ISkill[]
 ): string {
   const insights: string[] = [];
 
@@ -201,7 +201,7 @@ function generateAlignmentInsights(
 /**
  * Calculate readiness level based on skill ratings
  */
-export function calculateReadinessLevel(skills: Skill[]): 'High' | 'Medium' | 'Low' {
+export function calculateReadinessLevel(skills: ISkill[]): 'High' | 'Medium' | 'Low' {
   if (!skills.length) return 'Low';
   
   const avgRating = skills.reduce((sum, skill) => sum + skill.rating, 0) / skills.length;

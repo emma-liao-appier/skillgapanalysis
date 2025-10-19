@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { AssessmentData, SummaryData, SummaryStage, SkillCategory, Skill } from '../types';
+import { AssessmentData, SummaryData, SummaryStage, SkillCategory, Skill } from '../types.ts';
 import ThinkingRobot from './ThinkingRobot';
 import { apiService } from '../services/apiService';
 import { useLanguage } from '../context/LanguageContext';
-import { generateAlignmentAnalysis, calculateReadinessLevel, determineTalentType } from '../lib/alignmentScore';
+import { generateAlignmentAnalysis, calculateReadinessLevel, determineTalentType } from '../lib/alignmentScore.ts';
 
 interface StepSummaryProps {
   assessmentData: AssessmentData;

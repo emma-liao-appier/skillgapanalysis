@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Step } from '../types';
+import { Step } from '../types.ts';
 import { useLanguage } from '../context/LanguageContext';
 
 interface HeaderProps {

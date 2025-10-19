@@ -1,5 +1,5 @@
 import React from 'react';
-import { LanguageCode } from '../types.ts';
+import { LanguageCode } from '../types';
 import { languages } from '../lib/translations';
 import { useLanguage } from '../context/LanguageContext';
 

@@ -1,4 +1,5 @@
 // Accessibility utilities and helpers
+import React from 'react';
 export class AccessibilityHelper {
   // Generate unique IDs for form elements
   static generateId(prefix: string): string {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Step } from '../types.ts';
+import { Step } from '../types';
 import { useLanguage } from '../context/LanguageContext';
 
 interface HeaderProps {
@@ -10,11 +10,11 @@ interface HeaderProps {
 }
 
 const stepKeys = [
-  { id: Step.Language, key: 'header_language', icon: '🌐' },
-  { id: Step.Intro, key: 'header_intro', icon: '👋' },
-  { id: Step.Business, key: 'header_business', icon: '🏢' },
-  { id: Step.Career, key: 'header_career', icon: '🚀' },
-  { id: Step.Summary, key: 'header_summary', icon: '📊' },
+  { id: Step.Language, key: 'header_language' },
+  { id: Step.Intro, key: 'header_intro' },
+  { id: Step.Business, key: 'header_business' },
+  { id: Step.Career, key: 'header_career' },
+  { id: Step.Summary, key: 'header_summary' },
 ];
 
 const CheckIcon = () => (

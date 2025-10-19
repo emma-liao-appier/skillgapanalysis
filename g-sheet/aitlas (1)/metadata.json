@@ -1,0 +1,5 @@
+{
+  "name": "AItlas",
+  "description": "An internal tool for employees to perform a conversational self-assessment of their skills. The system provides skill recommendations based on roles and career goals, generates a skill gap summary, and prepares the data for export.",
+  "requestFramePermissions": []
+}

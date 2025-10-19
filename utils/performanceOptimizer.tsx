@@ -1,4 +1,5 @@
 // Performance optimization utilities
+import React from 'react';
 export class PerformanceOptimizer {
   // Image optimization
   static optimizeImage(

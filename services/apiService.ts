@@ -1,4 +1,4 @@
-import { AssessmentData, Skill, SummaryData } from '../types';
+import { AssessmentData, Skill, SummaryData } from '../types.ts';
 
 type AssessmentStatus = 'draft' | 'completed' | 'archived';
 
@@ -385,7 +385,7 @@ class ApiService {
 
       if (updates.businessGoal && updates.businessGoal !== userProfile.q4Okr) {
         console.log('Updating user q4Okr:', updates.businessGoal);
-        const updatedUser = await this.updateUser(userProfile.id, { q4Okr: updates.businessGoal });
+        const updatedUser = await this.updateUser(userProfile.id, { q4Okr: updates.businessGoal }) as any;
         userProfile.q4Okr = updatedUser.q4Okr;
         this.userProfileCache[normalizedEmail] = userProfile;
       }

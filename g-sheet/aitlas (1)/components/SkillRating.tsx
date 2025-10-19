@@ -1,5 +1,5 @@
 import React from 'react';
-import { Skill, SkillCategory } from '../types.ts';
+import { Skill, SkillCategory } from '../types';
 import { useLanguage } from '../context/LanguageContext';
 
 interface SkillRatingProps {
@@ -34,7 +34,7 @@ const SkillRating: React.FC<SkillRatingProps> = ({ skill, onRate, onDelete }) =>
           </h4>
         </div>
         <button 
-            onClick={() => onDelete(skill.skillId)} 
+            onClick={() => onDelete(skill.id)} 
             className="text-slate-500 hover:text-red-400 transition-colors p-1 rounded-full -mr-1 -mt-1"
             aria-label={`Delete skill ${skill.name}`}
         >
@@ -46,7 +46,7 @@ const SkillRating: React.FC<SkillRatingProps> = ({ skill, onRate, onDelete }) =>
         {[1, 2, 3, 4, 5].map((value) => (
           <button
             key={value}
-            onClick={() => onRate(skill.skillId, value)}
+            onClick={() => onRate(skill.id, value)}
             className={`w-9 h-9 text-sm font-bold rounded-full border-2 transition-all duration-200 flex items-center justify-center ${
               skill.rating >= value
                 ? 'bg-cyan-500 border-cyan-400 text-white'

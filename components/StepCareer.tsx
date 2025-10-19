@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { AssessmentData, Skill, CareerStage, SkillCategory } from '../types';
+import { AssessmentData, Skill, CareerStage, SkillCategory } from '../types.ts';
 import SkillRating from './SkillRating';
 import RatingExplanation from './RatingExplanation';
 import ThinkingRobot from './ThinkingRobot';

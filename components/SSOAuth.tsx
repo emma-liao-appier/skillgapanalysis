@@ -87,7 +87,7 @@ const SSOAuth: React.FC<SSOAuthProps> = ({ onUserAuthenticated, onError }) => {
   const authenticateUser = async (userEmail: string) => {
     try {
       setIsLoading(true);
-      const response = await apiService.authenticateSSO(userEmail);
+      const response = await apiService.authenticateSSO(userEmail) as any;
       
       if (response.isEmployee) {
         // Store for future use
