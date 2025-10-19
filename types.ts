@@ -23,12 +23,11 @@ export enum SkillCategory {
 
 
 export interface Skill {
-  skillId: string;
+  id: string;
   name: string;
   description: string;
-  rating: number; // 1-5 for rated
+  rating: number; // 0 for unrated, 1-5 for rated
   category: SkillCategory;
-  tag: string; // "biz" or "career"
 }
 
 export interface SummaryData {
@@ -36,59 +35,23 @@ export interface SummaryData {
   careerReadiness: number;
   recommendations: string;
   suggestedNextSteps: string[];
-  // 新增的 alignment score 相關數據
-  alignmentScore?: number;
-  alignmentLevel?: string;
-  talentType?: string;
-  alignmentInsights?: string;
-  alignmentComponents?: {
-    skillOverlapRate: number;
-    skillRatingSimilarity: number;
-    categoryBalance: number;
-    semanticMatch: number;
-    finalScore: number;
-  };
-  vennDiagramFeedback?: {
-    businessFeedback: string;
-    careerFeedback: string;
-    alignmentFeedback: string;
-  };
 }
 
 export interface AssessmentData {
-  // 0. meta
-  period: string;
-  status: 'draft' | 'submitted';
   language: string;
-
-  // 3. Business
   role: string;
+  careerGoal: string;
+  peerFeedback: string;
+  careerIntro?: string;
   businessGoal: string;
   keyResults: string;
   businessSkills: Skill[];
-  businessFeedbackSupport: string;
-  businessFeedbackObstacles: string;
-
-  // 4. Career
-  careerGoal: string;
   careerSkills: Skill[];
-
-  // 5. Summary
-  nextSteps: string[];
-  nextStepsOther: string;
-  finalThoughts: string;
-
-  // 6. Cached analytics for Summary/報表
-  readinessBusiness: number;
-  readinessCareer: number;
-  alignmentScore: number;
-  talentType: string;
-  focusAreas: string[];
-  categoryAverages: any;
-
-  // Legacy fields for backward compatibility
-  peerFeedback?: string;
-  careerIntro?: string;
+  businessFeedbackSupport?: string;
+  businessFeedbackObstacles?: string;
   careerFeedback?: string;
   summary?: SummaryData;
+  nextSteps?: string[];
+  nextStepsOther?: string;
+  finalThoughts?: string;
 }

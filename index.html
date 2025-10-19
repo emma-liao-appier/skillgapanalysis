@@ -4,7 +4,18 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AItlas - Skill Assessment</title>
+    <title>Conversational Skill Self-Assessment</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      @keyframes robot-think {
+        0%, 100% { transform: translateY(0) rotate(0deg); }
+        25% { transform: translateY(-8px) rotate(-5deg); }
+        75% { transform: translateY(-8px) rotate(5deg); }
+      }
+      .animate-robot-think {
+        animation: robot-think 2s ease-in-out infinite;
+      }
+    </style>
   <script type="importmap">
 {
   "imports": {
