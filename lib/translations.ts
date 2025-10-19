@@ -120,7 +120,7 @@ const translations: Translations = {
 
     // Loading Messages
     loading_business_skills: 'AItlas is analyzing your goals to suggest the best skills...',
-    loading_career_skills: 'AItlas is charting a skill path for your next role...',
+    loading_career_skills: 'AItlas is charting a skill path for your development journey...',
     loading_summary: 'AItlas is crafting your personalized summary...',
 
     // Skill Categories

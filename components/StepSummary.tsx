@@ -472,14 +472,14 @@ const StepSummary: React.FC<StepSummaryProps> = ({ assessmentData, updateSummary
   };
 
   const VennDiagram: React.FC = () => {
-    const circleSize = 60;
-    const overlap = 20;
-    const centerX = 90; // 移到更中心位置
-    const centerY = 70; // 移到更中心位置
+    const circleSize = 70;
+    const overlap = 25;
+    const centerX = 100; // 移到更中心位置
+    const centerY = 80; // 移到更中心位置
 
     return (
-      <div className="flex justify-center my-6">
-        <svg width="180" height="140" className="cursor-pointer"> {/* 放大 container */}
+      <div className="flex justify-center h-40">
+        <svg width="200" height="160" className="cursor-pointer"> {/* 放大 container */}
           {/* Business Skills Circle */}
           <circle
             cx={centerX - overlap/2}
@@ -566,8 +566,8 @@ const StepSummary: React.FC<StepSummaryProps> = ({ assessmentData, updateSummary
 
   // Donut Chart Component for Readiness Level
   const DonutChart: React.FC = () => {
-    const size = 120;
-    const strokeWidth = 20;
+    const size = 140;
+    const strokeWidth = 24;
     const radius = (size - strokeWidth) / 2;
     const circumference = 2 * Math.PI * radius;
     const readinessPercentage = getReadinessPercentage();
@@ -581,7 +581,7 @@ const StepSummary: React.FC<StepSummaryProps> = ({ assessmentData, updateSummary
     const backgroundDashoffset = `-${(readinessPercentage / 100) * circumference}`;
 
     return (
-      <div className="flex flex-col items-center">
+      <div className="flex flex-col items-center justify-center h-40">
         <div className="relative">
           <svg width={size} height={size} className="drop-shadow-lg">
             {/* Background circle (transparent gray) */}
@@ -666,14 +666,14 @@ const StepSummary: React.FC<StepSummaryProps> = ({ assessmentData, updateSummary
 
       {/* Interactive Venn Diagram & Donut Chart - Side by Side Layout */}
       <div className="mb-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+        <div className="flex flex-row items-center justify-center gap-8 min-[480px]:gap-12">
           {/* Left: Venn Diagram */}
-          <div className="flex flex-col items-center">
+          <div className="flex flex-col items-center flex-1 max-w-xs">
             <VennDiagram />
           </div>
           
           {/* Right: Donut Chart */}
-          <div className="flex flex-col items-center">
+          <div className="flex flex-col items-center flex-1 max-w-xs">
             <DonutChart />
           </div>
         </div>
