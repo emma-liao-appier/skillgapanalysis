@@ -3,6 +3,7 @@ import { AssessmentData, SummaryData, SummaryStage, SkillCategory, Skill } from 
 import ThinkingRobot from './ThinkingRobot';
 import { apiService } from '../services/apiService';
 import { useLanguage } from '../context/LanguageContext';
+import { generateAlignmentAnalysis, calculateReadinessLevel, determineTalentType } from '../lib/alignmentScore';
 
 interface StepSummaryProps {
   assessmentData: AssessmentData;
@@ -288,66 +289,64 @@ const StepSummary: React.FC<StepSummaryProps> = ({ assessmentData, updateSummary
     });
   }, [summaryCalculations, selectedVennArea]);
 
-  // Deterministic Talent Navigation analysis (no backend dependency)
+  // Deterministic Talent Navigation analysis using new alignment score system
   const talentNavigation: TalentNavigation | null = useMemo(() => {
     if (!assessmentData.summary) return null;
 
-    // 1) Alignment score (simple heuristic): text overlap + category overlap
-    const normalize = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
-    const words = (s: string) => Array.from(new Set(normalize(s).split(/\s+/).filter(Boolean)));
-    const bizWords = new Set(words(assessmentData.businessGoal + ' ' + (assessmentData.keyResults || '')));
-    const careerWords = new Set(words(assessmentData.careerGoal));
-    const commonWordCount = Array.from(bizWords).filter(w => careerWords.has(w)).length;
-    const alignTextScore = bizWords.size > 0 ? Math.min(100, Math.round((commonWordCount / Math.max(6, bizWords.size)) * 100)) : 50;
+    // 使用新的 alignment score 計算系統
+    const alignmentAnalysis = generateAlignmentAnalysis(
+      assessmentData.businessSkills,
+      assessmentData.careerSkills,
+      assessmentData.businessGoal,
+      assessmentData.careerGoal
+    );
 
-    const bizCats = new Set(assessmentData.businessSkills.map(s => s.category));
-    const careerCats = new Set(assessmentData.careerSkills.map(s => s.category));
-    const commonCats = Array.from(bizCats).filter(c => careerCats.has(c)).length;
-    const alignCatScore = (bizCats.size + careerCats.size) > 0 ? Math.round((commonCats / Math.max(1, Math.max(bizCats.size, careerCats.size))) * 100) : 50;
+    const alignmentScore = assessmentData.summary.alignmentScore || alignmentAnalysis.score;
+    const alignmentLevel = assessmentData.summary.alignmentLevel || alignmentAnalysis.level;
 
-    const alignmentScore = Math.round(0.7 * alignTextScore + 0.3 * alignCatScore);
-    let alignmentLevel: AlignmentLevel = 'Partial';
-    if (alignmentScore >= 67) alignmentLevel = 'High';
-    else if (alignmentScore < 40) alignmentLevel = 'Low';
-
-    // 2) Readiness score: average of all rated skills
+    // 計算 readiness score
     const allSkills = [...assessmentData.businessSkills, ...assessmentData.careerSkills];
-    const rated = allSkills.filter(s => s.rating > 0);
-    const avg = rated.length ? rated.reduce((a, s) => a + s.rating, 0) / rated.length : 0;
-    const readinessScore = Math.round((avg / 5) * 100);
-    let readinessLevel: ReadinessLevel = 'Medium';
-    if (readinessScore >= 75) readinessLevel = 'High';
-    else if (readinessScore < 50) readinessLevel = 'Low';
+    const readinessLevel = calculateReadinessLevel(allSkills);
 
-    // 3) Map to Talent Type (3x3 matrix)
-    const levelToIdx = (lvl: AlignmentLevel | ReadinessLevel) => ({ High: 2, Medium: 1, Partial: 1, Low: 0 } as any)[lvl];
-    const a = levelToIdx(alignmentLevel);
-    const r = levelToIdx(readinessLevel);
-    let talentType: TalentType = 'Evolving Generalist';
-    if (a === 2 && r === 2) talentType = 'Strategic Contributor';
-    else if (a === 2 && r === 1) talentType = 'Emerging Talent';
-    else if (a === 2 && r === 0) talentType = 'Foundational Builder';
-    else if (a === 1 && r === 2) talentType = 'Functional Expert';
-    else if (a === 1 && r === 1) talentType = 'Evolving Generalist';
-    else if (a === 1 && r === 0) talentType = 'Exploring Talent';
-    else if (a === 0 && r === 2) talentType = 'Re-direction Needed';
-    else if (a === 0 && r === 1) talentType = 'Potential Shifter';
-    else if (a === 0 && r === 0) talentType = 'Career Explorer';
+    // 使用新的 talent type 判定
+    const talentType = assessmentData.summary.talentType || determineTalentType(alignmentLevel, readinessLevel);
 
-    // 4) Focus areas from lowest categories
-    const categories = new Map<string, { count: number; total: number }>();
-    for (const s of allSkills) {
-      const key = s.category;
-      const item = categories.get(key) || { count: 0, total: 0 };
-      item.count += 1;
-      item.total += s.rating;
-      categories.set(key, item);
+    // Focus areas from summary or calculate from lowest categories
+    let focusAreas: string[] = [];
+    if (assessmentData.summary.alignmentComponents) {
+      // 使用 summary 中的 focus areas 或根據 alignment components 計算
+      focusAreas = assessmentData.summary.focusAreas || [];
+    } else {
+      // 回退到原有的計算方式
+      const categories = new Map<string, { count: number; total: number }>();
+      for (const s of allSkills) {
+        const key = s.category;
+        const item = categories.get(key) || { count: 0, total: 0 };
+        item.count += 1;
+        item.total += s.rating;
+        categories.set(key, item);
+      }
+      const categoryAverages = Array.from(categories.entries()).map(([cat, { count, total }]) => ({ cat, avg: count ? total / count : 0 }));
+      focusAreas = categoryAverages.sort((x, y) => x.avg - y.avg).slice(0, 3).map(x => t(`skill_category_${x.cat}`));
     }
-    const categoryAverages = Array.from(categories.entries()).map(([cat, { count, total }]) => ({ cat, avg: count ? total / count : 0 }));
-    const focusAreas = categoryAverages.sort((x, y) => x.avg - y.avg).slice(0, 3).map(x => t(`skill_category_${x.cat}`));
 
-    // 5) Recommendations per talent type (short, action-oriented)
-    const recMap: Record<TalentType, string[]> = {
+
+    // 使用 summary 中的 recommendations 或回退到預設建議
+    const recommendations = assessmentData.summary.suggestedNextSteps || getDefaultRecommendations(talentType);
+
+    return {
+      alignmentScore,
+      alignmentLevel,
+      readinessLevel,
+      talentType,
+      focusAreas,
+      recommendations
+    };
+  }, [assessmentData.summary, assessmentData.businessSkills, assessmentData.careerSkills, assessmentData.businessGoal, assessmentData.careerGoal, t]);
+
+  // 預設建議函數
+  const getDefaultRecommendations = (talentType: string): string[] => {
+    const recMap: Record<string, string[]> = {
       'Strategic Contributor': [
         'Mentor others to scale your impact',
         'Lead cross-functional initiatives with clear outcomes',
@@ -389,22 +388,13 @@ const StepSummary: React.FC<StepSummaryProps> = ({ assessmentData, updateSummary
         'Find a peer coach in target area',
       ],
       'Career Explorer': [
-        'Provide career counseling and skill trials',
-        'Shadow roles to learn expectations',
-        'Set short, low-risk experiments',
+        'Start with skill discovery and goal clarity',
+        'Try diverse projects to find passion',
+        'Build foundational skills systematically',
       ],
     };
-
-    return {
-      alignmentScore,
-      readinessScore,
-      alignmentLevel,
-      readinessLevel,
-      talentType,
-      focusAreas,
-      recommendations: recMap[talentType],
-    };
-  }, [assessmentData, t]);
+    return recMap[talentType] || recMap['Evolving Generalist'];
+  };
 
   const getAlignmentBadge = (lvl: AlignmentLevel) => {
     const map: Record<AlignmentLevel, { icon: string; cls: string }> = {
@@ -467,10 +457,18 @@ const StepSummary: React.FC<StepSummaryProps> = ({ assessmentData, updateSummary
   
   const { skillStatsByCategory, focusAreas, rankedSkills } = summaryCalculations;
 
-  const vennDiagramMessages = {
-    business: "Your business skills show strong execution capabilities. Focus on scaling impact through systematic approaches and cross-functional collaboration.",
-    career: "Your career development path demonstrates clear growth potential. Continue building expertise while expanding leadership influence.",
-    alignment: "Your business and career goals show promising alignment. This synergy creates opportunities for accelerated growth and meaningful impact."
+  // 使用 summary 中的 venn diagram feedback 或預設 messages
+  const vennDiagramMessages = assessmentData.summary?.vennDiagramFeedback || {
+    businessFeedback: "Your business skills show strong execution capabilities. Focus on scaling impact through systematic approaches and cross-functional collaboration.",
+    careerFeedback: "Your career development path demonstrates clear growth potential. Continue building expertise while expanding leadership influence.",
+    alignmentFeedback: "Your business and career goals show promising alignment. This synergy creates opportunities for accelerated growth and meaningful impact."
+  };
+
+  const getVennMessage = (area: string) => {
+    if (area === 'business') return vennDiagramMessages.businessFeedback;
+    if (area === 'career') return vennDiagramMessages.careerFeedback;
+    if (area === 'alignment') return vennDiagramMessages.alignmentFeedback;
+    return '';
   };
 
   const VennDiagram: React.FC = () => {
@@ -717,7 +715,7 @@ const StepSummary: React.FC<StepSummaryProps> = ({ assessmentData, updateSummary
                      'Alignment Analysis'}
                   </h5>
                   <p className="text-slate-200 text-sm leading-relaxed">
-                    {vennDiagramMessages[selectedVennArea]}
+                    {getVennMessage(selectedVennArea)}
                   </p>
                 </div>
               ) : (

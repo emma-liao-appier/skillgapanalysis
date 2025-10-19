@@ -16,14 +16,6 @@ router.post('/recommend/:email', skillController.recommendSkills);
 // 用戶接受推薦的技能
 router.post('/accept/:email', skillController.acceptRecommendedSkills);
 
-// 獲取用戶的技能評估
-router.get('/assessment/:email', skillController.getUserSkillAssessment);
-
-// 更新技能評分
-router.put('/rating/:email', skillController.updateSkillRating);
-
-// 添加同儕反饋
-router.post('/feedback/:email', skillController.addPeerFeedback);
 
 // 創建新技能
 router.post('/', skillController.createSkill);

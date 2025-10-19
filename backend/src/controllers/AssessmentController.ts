@@ -314,10 +314,31 @@ export class AssessmentController {
 
       const summary = await this.geminiService.generateSummary(assessment);
 
-      // Update assessment with summary
+      // Update assessment with summary and alignment data
+      const updateData: any = { 
+        summary,
+        // 更新 alignment score 相關數據
+        alignmentScore: summary.alignmentScore || 0,
+        alignmentLevel: summary.alignmentLevel || 'Partial',
+        talentType: summary.talentType || 'Evolving Generalist',
+        alignmentInsights: summary.alignmentInsights || '',
+        alignmentComponents: summary.alignmentComponents || {
+          skillOverlapRate: 0,
+          skillRatingSimilarity: 0,
+          categoryBalance: 0,
+          semanticMatch: 0,
+          finalScore: 0
+        },
+        vennDiagramFeedback: summary.vennDiagramFeedback || {
+          businessFeedback: '',
+          careerFeedback: '',
+          alignmentFeedback: ''
+        }
+      };
+
       const updatedAssessment = await Assessment.findByIdAndUpdate(
         id,
-        { summary },
+        updateData,
         { new: true }
       );
 
@@ -466,7 +487,7 @@ export class AssessmentController {
 
   updateCareer = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { userEmail, careerGoal, careerDevelopmentFocus, careerFeedbackThemes, careerSkills, period } = req.body;
+      const { userEmail, careerGoal, careerSkills, period } = req.body;
       
       if (!userEmail) {
         res.status(400).json({ error: 'User email is required' });
@@ -495,8 +516,6 @@ export class AssessmentController {
 
       // Update career fields
       if (careerGoal !== undefined) assessment.careerGoal = careerGoal;
-      if (careerDevelopmentFocus !== undefined) assessment.careerDevelopmentFocus = careerDevelopmentFocus;
-      if (careerFeedbackThemes !== undefined) assessment.careerFeedbackThemes = careerFeedbackThemes;
       if (careerSkills !== undefined) {
         // Ensure skills have proper tag
         assessment.careerSkills = careerSkills.map((skill: any) => ({

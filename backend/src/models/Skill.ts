@@ -17,11 +17,8 @@ export interface ISkill extends Document {
   skillId: string;           // 唯一識別碼
   name: string;              // 技能名稱
   description: string;       // 技能描述
-  skillBenefit: string;      // 技能好處
   category: SkillCategory;   // 技能類別
   type: SkillType;          // 技能類型 (general/functional)
-  division: string;          // 適用部門
-  department: string;        // 適用科別
   isActive: boolean;         // 是否啟用
   createdAt: Date;
   updatedAt: Date;
@@ -43,11 +40,6 @@ const SkillSchema = new Schema<ISkill>({
     required: true,
     trim: true
   },
-  skillBenefit: {
-    type: String,
-    required: true,
-    trim: true
-  },
   category: {
     type: String,
     enum: Object.values(SkillCategory),
@@ -58,16 +50,6 @@ const SkillSchema = new Schema<ISkill>({
     enum: Object.values(SkillType),
     required: true,
     default: SkillType.General
-  },
-  division: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  department: {
-    type: String,
-    required: true,
-    trim: true
   },
   isActive: {
     type: Boolean,
@@ -81,7 +63,6 @@ const SkillSchema = new Schema<ISkill>({
 SkillSchema.index({ skillId: 1 });
 SkillSchema.index({ category: 1 });
 SkillSchema.index({ type: 1 });
-SkillSchema.index({ division: 1, department: 1 });
 SkillSchema.index({ isActive: 1 });
 
 export const Skill = mongoose.model<ISkill>('Skill', SkillSchema);

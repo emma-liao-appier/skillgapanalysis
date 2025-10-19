@@ -36,6 +36,23 @@ export interface SummaryData {
   careerReadiness: number;
   recommendations: string;
   suggestedNextSteps: string[];
+  // 新增的 alignment score 相關數據
+  alignmentScore?: number;
+  alignmentLevel?: string;
+  talentType?: string;
+  alignmentInsights?: string;
+  alignmentComponents?: {
+    skillOverlapRate: number;
+    skillRatingSimilarity: number;
+    categoryBalance: number;
+    semanticMatch: number;
+    finalScore: number;
+  };
+  vennDiagramFeedback?: {
+    businessFeedback: string;
+    careerFeedback: string;
+    alignmentFeedback: string;
+  };
 }
 
 export interface AssessmentData {
@@ -54,8 +71,6 @@ export interface AssessmentData {
 
   // 4. Career
   careerGoal: string;
-  careerDevelopmentFocus: string;
-  careerFeedbackThemes: string;
   careerSkills: Skill[];
 
   // 5. Summary

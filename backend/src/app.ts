@@ -10,7 +10,6 @@ import { config, validateConfig } from './config/environment';
 // Import routes
 import assessmentRoutes from './routes/assessment';
 import userRoutes from './routes/user';
-import feedbackRoutes from './routes/feedback';
 import sheetsRoutes from './routes/sheets';
 import skillRoutes from './routes/skill';
 
@@ -80,7 +79,6 @@ app.get('/health', (req, res) => {
 // API routes
 app.use('/api/assessments', assessmentRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/feedback', feedbackRoutes);
 app.use('/api/sheets', sheetsRoutes);
 app.use('/api/skills', skillRoutes);
 

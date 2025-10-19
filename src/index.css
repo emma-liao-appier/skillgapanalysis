@@ -1,3 +1,5 @@
+@import './design-system.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -11,4 +13,26 @@
 
 .animate-robot-think {
   animation: robot-think 2s ease-in-out infinite;
+}
+
+/* Enhanced loading states */
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Focus ring for better accessibility */
+.focus-ring {
+  @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+}
+
+/* High contrast mode adjustments */
+@media (prefers-contrast: high) {
+  .focus-ring {
+    @apply focus:ring-4 focus:ring-offset-4;
+  }
 }

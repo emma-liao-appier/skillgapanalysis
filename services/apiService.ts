@@ -329,11 +329,8 @@ class ApiService {
   async createSkill(skillData: {
     name: string;
     description: string;
-    skillBenefit?: string;
     category: string;
     type: string;
-    division?: string;
-    department?: string;
   }) {
     return this.makeRequest('/api/skills', {
       method: 'POST',
@@ -444,8 +441,6 @@ class ApiService {
           userEmail: normalizedEmail,
           period: '2025Q4',
           careerGoal: updates.careerGoal,
-          careerDevelopmentFocus: updates.careerDevelopmentFocus,
-          careerFeedbackThemes: updates.careerFeedbackThemes,
           careerSkills: updates.careerSkills
         })
       });
@@ -557,32 +552,6 @@ class ApiService {
     });
   }
 
-  // 360 Feedback
-  async createFeedbackInvites(inviteData: any) {
-    return this.makeRequest('/api/feedback/invites', {
-      method: 'POST',
-      body: JSON.stringify(inviteData),
-    });
-  }
-
-  async getFeedbackInvites(email: string) {
-    return this.makeRequest(`/api/feedback/invites?email=${encodeURIComponent(email)}`);
-  }
-
-  async getPendingInviteCount(email: string) {
-    return this.makeRequest(`/api/feedback/invites/count?email=${encodeURIComponent(email)}`);
-  }
-
-  async submitFeedbackResponse(inviteId: string, responseData: any) {
-    return this.makeRequest(`/api/feedback/invites/${inviteId}/respond`, {
-      method: 'POST',
-      body: JSON.stringify(responseData),
-    });
-  }
-
-  async getFeedbackSummary(assessmentId: string) {
-    return this.makeRequest(`/api/feedback/assessees/${assessmentId}/summary`);
-  }
 
   // Health check
   async healthCheck() {

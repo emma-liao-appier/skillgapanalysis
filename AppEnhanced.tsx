@@ -1,15 +1,26 @@
-import React, { useState } from 'react';
+import React, { Suspense, lazy, useState } from 'react';
 import { Step, AssessmentData, Skill, SummaryData, LanguageCode, BusinessStage, CareerStage } from './types';
-import Header from './components/Header';
+import HeaderEnhanced from './components/HeaderEnhanced';
 import SSOAuth from './components/SSOAuth';
 import StepLanguage from './components/StepLanguage';
 import StepIntro from './components/StepIntro';
-import StepBusiness from './components/StepBusiness';
-import StepCareer from './components/StepCareer';
-import StepSummary from './components/StepSummary';
+import ErrorBoundary from './components/ErrorBoundary';
+import LoadingSpinnerEnhanced from './components/LoadingSpinnerEnhanced';
 import { LanguageProvider } from './context/LanguageContext';
 import { languages } from './lib/translations';
 import { apiService } from './services/apiService';
+
+// Lazy load heavy components
+const StepBusiness = lazy(() => import('./components/StepBusiness'));
+const StepCareer = lazy(() => import('./components/StepCareer'));
+const StepSummary = lazy(() => import('./components/StepSummary'));
+
+// Loading component for lazy-loaded routes
+const ComponentLoader: React.FC<{ message?: string }> = ({ message = 'Loading...' }) => (
+  <div className="min-h-[500px] flex items-center justify-center">
+    <LoadingSpinnerEnhanced size="lg" message={message} />
+  </div>
+);
 
 // 擴展 Window 接口以包含 timeout 屬性
 declare global {
@@ -571,7 +582,6 @@ const App: React.FC = () => {
     }
   };
 
-
   const handleLanguageChange = (code: LanguageCode) => {
     setLanguage(code);
     const langName = languages.find(l => l.code === code)?.name || 'English';
@@ -610,72 +620,98 @@ const App: React.FC = () => {
       case Step.Intro:
         return <StepIntro user={user} onNext={() => setCurrentStep(Step.Business)} />;
       case Step.Business:
-        return <StepBusiness 
-                  assessmentData={dataToUse}
-                  stage={businessStage}
-                  setStage={setBusinessStage}
-                  updateSkills={updateBusinessSkills}
-                  updateRole={updateRole}
-                  updateBusinessGoal={updateBusinessGoal}
-                  updateKeyResults={updateKeyResults}
-                  updateBusinessFeedbackSupport={updateBusinessFeedbackSupport}
-                  updateBusinessFeedbackObstacles={updateBusinessFeedbackObstacles}
-                  onComplete={() => setCurrentStep(Step.Career)}
-                  user={user}
-                />;
+        return (
+          <Suspense fallback={<ComponentLoader message="Loading business assessment..." />}>
+            <StepBusiness 
+              assessmentData={dataToUse}
+              stage={businessStage}
+              setStage={setBusinessStage}
+              updateSkills={updateBusinessSkills}
+              updateRole={updateRole}
+              updateBusinessGoal={updateBusinessGoal}
+              updateKeyResults={updateKeyResults}
+              updateBusinessFeedbackSupport={updateBusinessFeedbackSupport}
+              updateBusinessFeedbackObstacles={updateBusinessFeedbackObstacles}
+              onComplete={() => setCurrentStep(Step.Career)}
+              user={user}
+            />
+          </Suspense>
+        );
       case Step.Career:
-        return <StepCareer 
-                  assessmentData={dataToUse} 
-                  stage={careerStage}
-                  setStage={setCareerStage}
-                  updateSkills={updateCareerSkills} 
-                  updateCareerGoal={updateCareerGoal}
-                  updatePeerFeedback={updatePeerFeedback}
-                  updateCareerIntro={updateCareerIntro}
-                  updateCareerFeedback={updateCareerFeedback}
-                  onComplete={() => setCurrentStep(Step.Summary)}
-               />;
+        return (
+          <Suspense fallback={<ComponentLoader message="Loading career assessment..." />}>
+            <StepCareer 
+              assessmentData={dataToUse} 
+              stage={careerStage}
+              setStage={setCareerStage}
+              updateSkills={updateCareerSkills} 
+              updateCareerGoal={updateCareerGoal}
+              updatePeerFeedback={updatePeerFeedback}
+              updateCareerIntro={updateCareerIntro}
+              updateCareerFeedback={updateCareerFeedback}
+              onComplete={() => setCurrentStep(Step.Summary)}
+            />
+          </Suspense>
+        );
       case Step.Summary:
-        return <StepSummary 
-                  assessmentData={dataToUse}
-                  updateSummary={updateSummary}
-                  updateNextSteps={updateNextSteps}
-                  updateNextStepsOther={updateNextStepsOther}
-                  updateFinalThoughts={updateFinalThoughts}
-                />;
+        return (
+          <Suspense fallback={<ComponentLoader message="Loading summary..." />}>
+            <StepSummary 
+              assessmentData={dataToUse}
+              updateSummary={updateSummary}
+              updateNextSteps={updateNextSteps}
+              updateNextStepsOther={updateNextStepsOther}
+              updateFinalThoughts={updateFinalThoughts}
+            />
+          </Suspense>
+        );
       default:
         return null;
     }
   };
 
   return (
-    <LanguageProvider value={{ language, setLanguage: handleLanguageChange }}>
-      <div className="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-center p-4 font-sans">
-        <div className="w-full max-w-4xl mx-auto flex flex-col gap-8">
-          {/* Developer Mode Toggle */}
-          <div className="flex justify-end">
-            <label className="flex items-center gap-2 text-sm text-slate-400">
-              <input
-                type="checkbox"
-                checked={devMode}
-                onChange={(e) => setDevMode(e.target.checked)}
-                className="rounded border-slate-600 bg-slate-700 text-cyan-600 focus:ring-cyan-500"
-              />
-              Developer Mode
-            </label>
+    <ErrorBoundary>
+      <LanguageProvider value={{ language, setLanguage: handleLanguageChange }}>
+        <div className="min-h-screen bg-gray-50">
+          {/* Skip link for accessibility */}
+          <a href="#main-content" className="skip-link">
+            Skip to main content
+          </a>
+          
+          <div className="w-full max-w-6xl mx-auto px-4 py-8">
+            {/* Developer Mode Toggle */}
+            <div className="flex justify-end mb-6">
+              <label className="flex items-center gap-2 text-sm text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={devMode}
+                  onChange={(e) => setDevMode(e.target.checked)}
+                  className="rounded border-gray-300 bg-white text-primary-600 focus:ring-primary-500"
+                  aria-label="Toggle developer mode"
+                />
+                Developer Mode
+              </label>
+            </div>
+            
+            <HeaderEnhanced 
+              currentStep={currentStep} 
+              setCurrentStep={setCurrentStep}
+              isBusinessComplete={isBusinessComplete}
+              isCareerComplete={isCareerComplete}
+            />
+            
+            <main 
+              id="main-content"
+              className="bg-white border border-gray-200 rounded-2xl shadow-sm p-8 min-h-[500px]"
+              role="main"
+            >
+              {renderStep()}
+            </main>
           </div>
-          <Header 
-            currentStep={currentStep} 
-            setCurrentStep={setCurrentStep}
-            isBusinessComplete={isBusinessComplete}
-            isCareerComplete={isCareerComplete}
-          />
-          <main className="bg-slate-800 border border-slate-700 rounded-2xl p-8 min-h-[500px]">
-            {renderStep()}
-          </main>
         </div>
-      </div>
-    </LanguageProvider>
+      </LanguageProvider>
+    </ErrorBoundary>
   );
 };
 

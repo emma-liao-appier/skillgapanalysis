@@ -1,21 +1,17 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import { AssessmentData, Skill, SummaryData, SkillCategory } from '../types';
 import { PREDEFINED_SKILLS } from '../lib/skills';
+import { renderPrompt, PromptRenderer } from '../lib/prompts';
+import { generateAlignmentAnalysis, calculateReadinessLevel, determineTalentType } from '../lib/alignmentScore';
 
 // FIX: Initialize the GoogleGenAI client. The API key must be read from environment variables.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
 
 export const generateKeyResults = async (role: string, businessGoal: string): Promise<string> => {
-    const prompt = `
-        As a business analyst, suggest 3 specific and measurable Key Results (KRs) for the following objective.
-        The person responsible for this objective is a "${role}".
-        The objective is: "${businessGoal}".
-
-        Format the Key Results as a bulleted list, with each KR on a new line starting with a dash. For example:
-        - Increase user engagement by 15%
-        - Launch the new feature by the end of Q3
-        - Reduce customer churn by 5%
-    `;
+    const prompt = renderPrompt('business', 'keyResults', {
+        role,
+        businessGoal
+    });
 
     try {
         const response = await ai.models.generateContent({
@@ -36,22 +32,12 @@ export const generateBusinessSkills = async (role: string, businessGoal: string,
         `Category: ${cat.category}\nSkills:\n${cat.skills.map(s => `- ${s.name}: ${s.description}`).join('\n')}`
     ).join('\n\n');
 
-    let prompt = `
-        You are a skills analyst. Your task is to recommend 5 skills for a person with the role '${role}' working towards this business goal: "${businessGoal}".
-    `;
-
-    if (keyResults) {
-        prompt += ` Consider these specific key results as well: "${keyResults}".`;
-    }
-
-    prompt += `
-        Perform the following two tasks:
-        1.  Select exactly 3 skills from the following list of General skills that are most relevant. Only return the names of the skills you select.
-        2.  Generate exactly 2 new 'Functional' skills. These should be specific, technical, or domain-specific skills directly related to the user's role and goal. For each functional skill, provide a name and a description.
-
-        General Skills List:
-        ${predefinedSkillsString}
-    `;
+    const prompt = renderPrompt('business', 'businessSkills', {
+        role,
+        businessGoal,
+        keyResults,
+        predefinedSkillsString
+    });
 
     try {
         const response = await ai.models.generateContent({
@@ -120,10 +106,9 @@ export const generateBusinessSkills = async (role: string, businessGoal: string,
 };
 
 export const optimizeText = async (textToOptimize: string): Promise<string> => {
-    const prompt = `You are a career coach. A user has provided the following text about their personal development goal. Rewrite it to be more constructive, specific, and actionable. Keep it concise (1-2 sentences) and encouraging.
-    Original text: "${textToOptimize}"
-    
-    Return only the rewritten text, without any preamble.`;
+    const prompt = renderPrompt('career', 'optimizeCareerGoal', {
+        textToOptimize
+    });
 
     try {
         const response = await ai.models.generateContent({
@@ -138,19 +123,10 @@ export const optimizeText = async (textToOptimize: string): Promise<string> => {
 };
 
 export const optimizeBusinessGoal = async (role: string, businessGoal: string): Promise<string> => {
-    const prompt = `You are a business strategy consultant and career coach. A user with the role "${role}" has provided their business goal. Help them make it more comprehensive, specific, and actionable.
-
-    Current Role: "${role}"
-    Original Business Goal: "${businessGoal}"
-
-    Please rewrite the business goal to be:
-    1. More specific and measurable
-    2. More comprehensive (considering broader business context)
-    3. More actionable with clear outcomes
-    4. Aligned with their role responsibilities
-    5. Professional and well-structured
-
-    Return only the optimized business goal, without any preamble or explanation.`;
+    const prompt = renderPrompt('business', 'optimizeBusinessGoal', {
+        role,
+        businessGoal
+    });
 
     try {
         const response = await ai.models.generateContent({
@@ -170,28 +146,12 @@ export const generateCareerIntroAndSkills = async (currentRole: string, careerGo
         `Category: ${cat.category}\nSkills:\n${cat.skills.map(s => `- ${s.name}: ${s.description}`).join('\n')}`
     ).join('\n\n');
 
-    const prompt = `
-        You are AItlas, an AI talent development coach. Analyze the following career development scenario and provide comprehensive insights:
-
-        User's Current Role: "${currentRole}"
-        User's Personal Growth Goal for the Year: "${careerGoal}"
-        Recent Feedback Received by User: "${peerFeedback || 'No feedback provided.'}"
-
-        Based on this information, perform the following tasks:
-
-        1. **Goal Alignment Analysis:** Assess how well their career goal aligns with their current role and provide:
-           - Alignment level: "Strong alignment", "Partial alignment", or "Low alignment"
-           - Explanation with specific examples (keep it concise - 1-2 sentences for summary, then bullet points for details)
-
-        2. **Suggested Skill Themes:** Identify 4-5 skill themes that would be most impactful for their development based on their role and career goal.
-
-        3. **Select General Skills:** Select exactly 3 skills from the following list that are most relevant for their growth goal.
-
-        4. **Generate Functional Skills:** Generate exactly 2 new 'Functional' skills that directly relate to achieving their stated goal.
-
-        General Skills List:
-        ${predefinedSkillsString}
-    `;
+    const prompt = renderPrompt('career', 'careerAnalysis', {
+        currentRole,
+        careerGoal,
+        peerFeedback: peerFeedback || 'No feedback provided.',
+        predefinedSkillsString
+    });
     
     try {
         const response = await ai.models.generateContent({
@@ -289,26 +249,28 @@ export const generateCareerIntroAndSkills = async (currentRole: string, careerGo
 };
 
 
-export const generateSummary = async (assessmentData: AssessmentData): Promise<SummaryData> => {
-    const prompt = `
-        Based on the following skill self-assessment, generate a summary.
-        Current Role: ${assessmentData.role}
-        User's Career Goal: ${assessmentData.careerGoal}
+export const generateTalentTypeAnalysis = async (assessmentData: AssessmentData): Promise<any> => {
+    const businessSkillsRatings = assessmentData.businessSkills.map(s => `- ${s.name} (${s.category}): ${s.rating}/5`).join('\n');
+    const careerSkillsRatings = assessmentData.careerSkills.map(s => `- ${s.name} (${s.category}): ${s.rating}/5`).join('\n');
 
-        Business Skills Ratings (1=Needs Development, 5=Expert):
-        ${assessmentData.businessSkills.map(s => `- ${s.name} (${s.category}): ${s.rating}/5`).join('\n')}
+    // 計算 alignment analysis
+    const alignmentAnalysis = generateAlignmentAnalysis(
+        assessmentData.businessSkills,
+        assessmentData.careerSkills,
+        assessmentData.businessGoal,
+        assessmentData.careerGoal
+    );
 
-        Career Growth Skills Ratings (1=Needs Development, 5=Expert):
-        ${assessmentData.careerSkills.map(s => `- ${s.name} (${s.category}): ${s.rating}/5`).join('\n')}
-        
-        User-provided context on what would help them: ${assessmentData.businessFeedbackSupport || 'N/A'}, ${assessmentData.careerFeedback || 'N/A'}
-
-        Provide the following in your response:
-        1. "businessReadiness": A percentage (0-100) indicating readiness for the current business role based on the ratings.
-        2. "careerReadiness": A percentage (0-100) indicating readiness for the next career role based on the ratings.
-        3. "recommendations": A short, encouraging paragraph (2-3 sentences) with high-level strategic advice for career development based on the assessment. This should be written in a friendly, coaching tone.
-        4. "suggestedNextSteps": An array of exactly 3 concise, actionable next steps the user can take to improve their lowest-rated skills. Each step should be a clear action, like "Lead a small project..." or "Mentor a junior engineer...".
-    `;
+    const prompt = renderPrompt('summary', 'talentTypeAnalysis', {
+        role: assessmentData.role,
+        businessGoal: assessmentData.businessGoal,
+        careerGoal: assessmentData.careerGoal,
+        keyResults: assessmentData.keyResults || '',
+        businessSkillsRatings,
+        careerSkillsRatings,
+        businessFeedbackSupport: assessmentData.businessFeedbackSupport || 'N/A',
+        careerFeedback: assessmentData.careerFeedback || 'N/A'
+    });
 
     try {
         const response = await ai.models.generateContent({
@@ -319,31 +281,183 @@ export const generateSummary = async (assessmentData: AssessmentData): Promise<S
                 responseSchema: {
                     type: Type.OBJECT,
                     properties: {
-                        businessReadiness: { type: Type.NUMBER },
-                        careerReadiness: { type: Type.NUMBER },
-                        recommendations: { type: Type.STRING },
-                        suggestedNextSteps: { 
+                        alignmentScore: { type: Type.NUMBER },
+                        alignmentLevel: { type: Type.STRING },
+                        readinessLevel: { type: Type.STRING },
+                        talentType: { type: Type.STRING },
+                        talentDescription: { type: Type.STRING },
+                        focusAreas: { 
                             type: Type.ARRAY, 
-                            description: "An array of exactly 3 actionable next steps.",
                             items: { type: Type.STRING } 
                         },
+                        recommendations: { 
+                            type: Type.ARRAY, 
+                            items: { type: Type.STRING } 
+                        },
+                        alignmentInsights: { type: Type.STRING }
                     },
-                    required: ['businessReadiness', 'careerReadiness', 'recommendations', 'suggestedNextSteps'],
+                    required: ['alignmentScore', 'alignmentLevel', 'readinessLevel', 'talentType', 'talentDescription', 'focusAreas', 'recommendations', 'alignmentInsights']
                 },
             },
         });
 
         const jsonString = response.text.trim();
-        return JSON.parse(jsonString) as SummaryData;
+        const aiResponse = JSON.parse(jsonString) as any;
+
+        // 合併 AI 回應和計算的 alignment analysis
+        return {
+            ...aiResponse,
+            alignmentComponents: alignmentAnalysis.components,
+            calculatedAlignmentScore: alignmentAnalysis.score,
+            calculatedAlignmentLevel: alignmentAnalysis.level,
+            calculatedInsights: alignmentAnalysis.insights
+        };
 
     } catch (error) {
-        console.error("Error generating summary:", error);
-        // Return a default/error summary object
+        console.error("Error generating talent type analysis:", error);
+        // 回退到計算的結果
+        const readinessLevel = calculateReadinessLevel([...assessmentData.businessSkills, ...assessmentData.careerSkills]);
+        const talentType = determineTalentType(alignmentAnalysis.level, readinessLevel);
+        
         return {
-            businessReadiness: 0,
-            careerReadiness: 0,
-            recommendations: "Could not generate recommendations due to an error.",
-            suggestedNextSteps: ["Error generating suggestions. Please try again."],
+            alignmentScore: alignmentAnalysis.score,
+            alignmentLevel: alignmentAnalysis.level,
+            readinessLevel,
+            talentType,
+            talentDescription: `You are a ${talentType} with ${alignmentAnalysis.level.toLowerCase()} alignment between your business and career goals.`,
+            focusAreas: ['Problem Solving', 'Communication'],
+            recommendations: ['Focus on skill development', 'Align your goals better', 'Seek mentorship'],
+            alignmentInsights: alignmentAnalysis.insights,
+            alignmentComponents: alignmentAnalysis.components,
+            calculatedAlignmentScore: alignmentAnalysis.score,
+            calculatedAlignmentLevel: alignmentAnalysis.level,
+            calculatedInsights: alignmentAnalysis.insights
         };
     }
+};
+
+export const generateVennDiagramFeedback = async (assessmentData: AssessmentData, talentAnalysis: any): Promise<any> => {
+    const businessSkillsAverage = assessmentData.businessSkills.length > 0 
+        ? assessmentData.businessSkills.reduce((sum, skill) => sum + skill.rating, 0) / assessmentData.businessSkills.length 
+        : 0;
+    const careerSkillsAverage = assessmentData.careerSkills.length > 0 
+        ? assessmentData.careerSkills.reduce((sum, skill) => sum + skill.rating, 0) / assessmentData.careerSkills.length 
+        : 0;
+
+    const prompt = renderPrompt('summary', 'vennDiagramFeedback', {
+        role: assessmentData.role,
+        businessGoal: assessmentData.businessGoal,
+        careerGoal: assessmentData.careerGoal,
+        businessSkillsAverage: Math.round(businessSkillsAverage * 10) / 10,
+        careerSkillsAverage: Math.round(careerSkillsAverage * 10) / 10,
+        alignmentScore: talentAnalysis.calculatedAlignmentScore || talentAnalysis.alignmentScore,
+        skillOverlapRate: Math.round((talentAnalysis.alignmentComponents?.skillOverlapRate || 0) * 100),
+        skillRatingSimilarity: Math.round((talentAnalysis.alignmentComponents?.skillRatingSimilarity || 0) * 100),
+        categoryBalance: Math.round((talentAnalysis.alignmentComponents?.categoryBalance || 0) * 100),
+        semanticMatch: Math.round((talentAnalysis.alignmentComponents?.semanticMatch || 0) * 100)
+    });
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: 'application/json',
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        businessFeedback: { type: Type.STRING },
+                        careerFeedback: { type: Type.STRING },
+                        alignmentFeedback: { type: Type.STRING }
+                    },
+                    required: ['businessFeedback', 'careerFeedback', 'alignmentFeedback']
+                },
+            },
+        });
+
+        const jsonString = response.text.trim();
+        return JSON.parse(jsonString) as any;
+
+    } catch (error) {
+        console.error("Error generating venn diagram feedback:", error);
+        return {
+            businessFeedback: "Focus on developing your core business skills to improve readiness for your current role.",
+            careerFeedback: "Continue building expertise in areas that align with your career growth goals.",
+            alignmentFeedback: "Work on aligning your business and career development to create synergy."
+        };
+    }
+};
+
+export const generateSuggestedNextSteps = async (assessmentData: AssessmentData, talentAnalysis: any): Promise<string[]> => {
+    const businessSkillsRatings = assessmentData.businessSkills.map(s => `- ${s.name} (${s.category}): ${s.rating}/5`).join('\n');
+    const careerSkillsRatings = assessmentData.careerSkills.map(s => `- ${s.name} (${s.category}): ${s.rating}/5`).join('\n');
+
+    const prompt = renderPrompt('summary', 'suggestedNextSteps', {
+        role: assessmentData.role,
+        businessGoal: assessmentData.businessGoal,
+        careerGoal: assessmentData.careerGoal,
+        keyResults: assessmentData.keyResults || '',
+        businessSkillsRatings,
+        careerSkillsRatings,
+        talentType: talentAnalysis.talentType,
+        focusAreas: talentAnalysis.focusAreas?.join(', ') || '',
+        alignmentLevel: talentAnalysis.calculatedAlignmentLevel || talentAnalysis.alignmentLevel,
+        readinessLevel: talentAnalysis.readinessLevel,
+        businessFeedbackSupport: assessmentData.businessFeedbackSupport || 'N/A',
+        careerFeedback: assessmentData.careerFeedback || 'N/A'
+    });
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: 'application/json',
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        suggestedNextSteps: { 
+                            type: Type.ARRAY, 
+                            items: { type: Type.STRING },
+                            description: "An array of exactly 3 actionable next steps."
+                        }
+                    },
+                    required: ['suggestedNextSteps']
+                },
+            },
+        });
+
+        const jsonString = response.text.trim();
+        const result = JSON.parse(jsonString) as any;
+        return result.suggestedNextSteps || [];
+
+    } catch (error) {
+        console.error("Error generating suggested next steps:", error);
+        return [
+            "Focus on developing your lowest-rated skills",
+            "Seek mentorship in your focus areas",
+            "Create a development plan aligned with your goals"
+        ];
+    }
+};
+
+// 保留原有的 generateSummary 函數作為向後兼容
+export const generateSummary = async (assessmentData: AssessmentData): Promise<SummaryData> => {
+    const talentAnalysis = await generateTalentTypeAnalysis(assessmentData);
+    const vennFeedback = await generateVennDiagramFeedback(assessmentData, talentAnalysis);
+    const nextSteps = await generateSuggestedNextSteps(assessmentData, talentAnalysis);
+
+    return {
+        businessReadiness: Math.round(talentAnalysis.alignmentComponents?.skillOverlapRate * 100 || 0),
+        careerReadiness: Math.round(talentAnalysis.alignmentComponents?.skillRatingSimilarity * 100 || 0),
+        recommendations: talentAnalysis.talentDescription || "Continue developing your skills and aligning your goals.",
+        suggestedNextSteps: nextSteps,
+        // 新增的 alignment score 相關數據
+        alignmentScore: talentAnalysis.calculatedAlignmentScore || talentAnalysis.alignmentScore,
+        alignmentLevel: talentAnalysis.calculatedAlignmentLevel || talentAnalysis.alignmentLevel,
+        talentType: talentAnalysis.talentType,
+        alignmentInsights: talentAnalysis.calculatedInsights || talentAnalysis.alignmentInsights,
+        alignmentComponents: talentAnalysis.alignmentComponents,
+        vennDiagramFeedback: vennFeedback
+    };
 };

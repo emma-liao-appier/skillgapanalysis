@@ -13,6 +13,23 @@ export interface ISummaryData {
   careerReadiness: number;
   recommendations: string;
   suggestedNextSteps: string[];
+  // 新增的 alignment score 相關數據
+  alignmentScore?: number;
+  alignmentLevel?: string;
+  talentType?: string;
+  alignmentInsights?: string;
+  alignmentComponents?: {
+    skillOverlapRate: number;
+    skillRatingSimilarity: number;
+    categoryBalance: number;
+    semanticMatch: number;
+    finalScore: number;
+  };
+  vennDiagramFeedback?: {
+    businessFeedback: string;
+    careerFeedback: string;
+    alignmentFeedback: string;
+  };
 }
 
 export interface ISkill {
@@ -42,9 +59,13 @@ export interface IAssessment extends Document {
 
   // 4. Career
   careerGoal: string;
-  careerDevelopmentFocus: string;
-  careerFeedbackThemes: string;
   careerSkills: ISkill[];
+  
+  // Legacy fields for backward compatibility
+  peerFeedback?: string;
+  careerIntro?: string;
+  careerFeedback?: string;
+  summary?: ISummaryData;
 
   // 5. Summary
   nextSteps: string[];
@@ -55,9 +76,23 @@ export interface IAssessment extends Document {
   readinessBusiness: number;
   readinessCareer: number;
   alignmentScore: number;
+  alignmentLevel: string;
   talentType: string;
   focusAreas: string[];
   categoryAverages: any;
+  alignmentInsights: string;
+  alignmentComponents: {
+    skillOverlapRate: number;
+    skillRatingSimilarity: number;
+    categoryBalance: number;
+    semanticMatch: number;
+    finalScore: number;
+  };
+  vennDiagramFeedback: {
+    businessFeedback: string;
+    careerFeedback: string;
+    alignmentFeedback: string;
+  };
 
   // 系統欄位
   submittedAt?: Date;
@@ -130,15 +165,24 @@ const AssessmentSchema = new Schema<IAssessment>({
     type: String,
     trim: true
   },
-  careerDevelopmentFocus: {
-    type: String,
-    trim: true
-  },
-  careerFeedbackThemes: {
-    type: String,
-    trim: true
-  },
   careerSkills: [SkillSchema],
+  
+  // Legacy fields for backward compatibility
+  peerFeedback: {
+    type: String,
+    trim: true
+  },
+  careerIntro: {
+    type: String,
+    trim: true
+  },
+  careerFeedback: {
+    type: String,
+    trim: true
+  },
+  summary: {
+    type: Schema.Types.Mixed
+  },
 
   // 5. Summary
   nextSteps: [{ type: String }],
@@ -168,15 +212,37 @@ const AssessmentSchema = new Schema<IAssessment>({
     type: Number,
     default: 0,
     min: 0,
-    max: 1
+    max: 100
+  },
+  alignmentLevel: {
+    type: String,
+    enum: ['High', 'Partial', 'Low'],
+    default: 'Partial'
   },
   talentType: {
     type: String,
-    trim: true
+    trim: true,
+    default: 'Evolving Generalist'
   },
   focusAreas: [{ type: String }],
   categoryAverages: {
     type: Schema.Types.Mixed
+  },
+  alignmentInsights: {
+    type: String,
+    trim: true
+  },
+  alignmentComponents: {
+    skillOverlapRate: { type: Number, default: 0 },
+    skillRatingSimilarity: { type: Number, default: 0 },
+    categoryBalance: { type: Number, default: 0 },
+    semanticMatch: { type: Number, default: 0 },
+    finalScore: { type: Number, default: 0 }
+  },
+  vennDiagramFeedback: {
+    businessFeedback: { type: String, trim: true },
+    careerFeedback: { type: String, trim: true },
+    alignmentFeedback: { type: String, trim: true }
   },
 
   // 系統欄位

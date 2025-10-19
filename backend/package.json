@@ -10,7 +10,8 @@
     "test": "jest",
     "import-employees": "ts-node scripts/importEmployees.ts",
     "import-okr": "ts-node scripts/importOkrData.ts",
-    "import-skills": "ts-node scripts/importSkillCatalogue.ts"
+    "import-skills": "ts-node scripts/importSkillCatalogue.ts",
+    "migrate-assessment": "ts-node scripts/migrate-assessment-schema.ts"
   },
   "dependencies": {
     "@google/genai": "^1.23.0",
